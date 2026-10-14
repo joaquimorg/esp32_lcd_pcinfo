@@ -14,6 +14,8 @@
                color: #8b929c; font: 18px "Segoe UI", system-ui, sans-serif; text-align: center; padding: 20px; }
     #message[hidden], #calibration[hidden] { display: none; }
     #calibration { position: absolute; left: 0; top: 0; }
+    /* Sempre acima das páginas (que têm z-index 0). */
+    #message, #calibration { z-index: 1; }
   </style>
 </head>
 <body>

@@ -236,7 +236,13 @@ function applyLayout(layout) {
   lang = I18N.normalizeLanguage(layout.lang);
   const calibrationEl = document.getElementById('calibration');
   calibrationEl.hidden = !layout.calibration;
-  if (layout.calibration) drawCalibration(layout.calibration);
+  calibration = layout.calibration || null;
+  if (calibration) {
+    drawCalibration(calibration);
+    // A janela muda de tamanho ao mesmo tempo (para o controlador inteiro) e esse
+    // primeiro desenho podia não chegar a ser mostrado: volta a desenhar.
+    requestAnimationFrame(() => { if (calibration) drawCalibration(calibration); });
+  }
 
   messageEl.textContent = layout.message || '';
   messageEl.hidden = !layout.message;
@@ -248,6 +254,9 @@ function applyLayout(layout) {
   sizePage(pageEl, layout);
   syncFrames(layout);
 }
+
+let calibration = null;   // padrão de calibração à vista (ou null)
+window.addEventListener('resize', () => { if (calibration) drawCalibration(calibration); });
 
 window.displayApi.onLayout(applyLayout);
 window.displayApi.onSensors((s) => {

@@ -20,6 +20,8 @@
 **Fixes**
 - Transitions: the incoming widget was see-through, so the previous one showed
   behind it.
+- The calibration pattern could stay black on the LCD: it was drawn while the
+  LCD window was being resized and that drawing was lost. It is now redrawn.
 
 **Firmware** (flash it again: `pio run -t upload`)
 - Waiting screen in English or Portuguese, chosen by the app and stored in
