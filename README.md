@@ -112,15 +112,28 @@ driver flags in `platformio.ini`.
 
 ### 1. Flash the firmware
 
-You need [PlatformIO](https://platformio.org/) (VS Code extension or CLI).
+**Prebuilt**: download `usb-lcd-firmware-esp32s2-<version>.bin` from the
+[latest release](https://github.com/joaquimorg/esp32_lcd_pcinfo/releases/latest).
+Put the board in bootloader mode (hold **0**, press **RST**, release **0**) and
+flash the file at address **0x0**, either from the browser with the
+[ESP Tool](https://espressif.github.io/esptool-js/) (Chrome or Edge) or with
+esptool:
+
+```
+esptool.py --chip esp32s2 --port COMx write_flash 0x0 usb-lcd-firmware-esp32s2-0.7.0.bin
+```
+
+Press **RST** when it finishes.
+
+**From source**: with [PlatformIO](https://platformio.org/) (VS Code extension
+or CLI):
 
 ```
 pio run -t upload
 ```
 
-If the board is not detected, put it in bootloader mode: hold **0**, press
-**RST**, release **0**, then upload again. Once the firmware is running, later
-uploads work without the buttons.
+If the board is not detected, put it in bootloader mode as above and upload
+again. Once the firmware is running, later uploads work without the buttons.
 
 After flashing, the LCD shows "Waiting for data from PC" with a status line:
 
@@ -142,8 +155,9 @@ Without it, the app still offers CPU and memory load and the clock.
 
 ### 3. Run the app
 
-Build it yourself (Node.js; tested with 22), or download the installer or the
-portable `.exe` from the Releases page if there is one:
+Download the installer or the portable `.exe` from the
+[latest release](https://github.com/joaquimorg/esp32_lcd_pcinfo/releases/latest),
+or build it yourself (Node.js; tested with 22):
 
 ```
 cd app
