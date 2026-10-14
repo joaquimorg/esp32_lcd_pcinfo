@@ -1,0 +1,30 @@
+{
+  "name": "Image",
+  "description": "PNG/JPG (with transparency), animated GIF and WebP, SVG.",
+  "category": "image",
+  "size": {"w": 120, "h": 40},
+  "properties": [
+    {"key": "file", "type": "file", "label": "File"},
+    {"key": "fit", "type": "select", "label": "Fit", "default": "contain", "options": ["contain", "cover", "fill", "none"], "optionLabels": {"contain": "contain (whole image)", "cover": "cover (crop)", "fill": "stretch", "none": "original size"}},
+    {"key": "opacity", "type": "number", "label": "Opacity (%)", "default": 100, "min": 0, "max": 100},
+    {"key": "rotation", "type": "number", "label": "Rotation (degrees)", "default": 0, "min": -360, "max": 360},
+    {"key": "radius", "type": "number", "label": "Corner radius (px)", "default": 0, "min": 0, "max": 500},
+    {"key": "pixelated", "type": "boolean", "label": "Pixelated (pixel art)", "default": false},
+    {"key": "animate", "type": "boolean", "label": "Animate (GIF/WebP)", "default": true}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Imagem",
+      "description": "PNG/JPG (com transparência), GIF e WebP animados, SVG.",
+      "properties": {
+        "file": {"label": "Ficheiro"},
+        "fit": {"label": "Ajuste", "optionLabels": {"contain": "conter (imagem inteira)", "cover": "cobrir (corta)", "fill": "esticar", "none": "tamanho original"}},
+        "opacity": {"label": "Opacidade (%)"},
+        "rotation": {"label": "Rotação (graus)"},
+        "radius": {"label": "Raio dos cantos (px)"},
+        "pixelated": {"label": "Pixelizado (pixel art)"},
+        "animate": {"label": "Animar (GIF/WebP)"}
+      }
+    }
+  }
+}

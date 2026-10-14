@@ -1,0 +1,19 @@
+{
+    "idf.portWin": "COM15",
+    "files.associations": {
+        "*.dbclient-js": "javascript",
+        "*.embeddedhtml": "html",
+        "*.sql": "oracle",
+        "compare": "cpp",
+        "array": "cpp",
+        "deque": "cpp",
+        "list": "cpp",
+        "string": "cpp",
+        "unordered_map": "cpp",
+        "vector": "cpp",
+        "string_view": "cpp",
+        "initializer_list": "cpp",
+        "regex": "cpp"
+    },
+    "cmake.sourceDirectory": "D:/Work/esp32/esp32_watch_lcd_pcinfo/lib/TFT_eSPI"
+}

@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body {
+    display: flex; flex-direction: column; justify-content: center;
+    font-family: "Segoe UI", system-ui, sans-serif; font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  #label { line-height: 1.1; }
+  #value { font-weight: 600; line-height: 1.05; }
+  #unit { font-weight: 400; margin-left: .12em; opacity: .8; }
+</style>
+</head>
+<body>
+  <div id="label"></div>
+  <div id="value"><span id="num"></span><span id="unit"></span></div>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const el = (id) => document.getElementById(id);
+
+  Widget.onUpdate((p, { size }) => {
+    const text = p.label || (p.sensor ? p.sensor.name : '');
+    el('label').textContent = text;
+    el('label').style.display = text ? '' : 'none';
+    el('label').style.color = p.labelColor;
+    el('label').style.fontSize = Math.round(size.height * (text ? 0.26 : 0)) + 'px';
+
+    el('num').textContent = Widget.format(p.sensor, p.decimals);
+    el('unit').textContent = p.showUnit && p.sensor ? p.sensor.unit : '';
+    el('value').style.color = p.color;
+    el('unit').style.fontSize = '.5em';
+    document.body.style.textAlign = p.align;
+
+    // Maior tamanho que cabe na largura e na altura disponíveis.
+    const value = el('value');
+    let fs = Math.round(size.height * (text ? 0.6 : 0.85));
+    value.style.fontSize = fs + 'px';
+    while (fs > 8 && value.scrollWidth > size.width) value.style.fontSize = (--fs) + 'px';
+  });
+</script>
+</body>
+</html>

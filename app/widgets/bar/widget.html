@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body {
+    display: flex; flex-direction: column; justify-content: space-between;
+    font-family: "Segoe UI", system-ui, sans-serif; font-variant-numeric: tabular-nums;
+  }
+  #row { display: flex; justify-content: space-between; white-space: nowrap; line-height: 1.1; }
+  #track { position: relative; overflow: hidden; }
+  #fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit;
+          transition: width .6s ease, background-color .6s ease; }
+</style>
+</head>
+<body>
+  <div id="row"><span id="label"></span><span id="num"></span></div>
+  <div id="track"><div id="fill"></div></div>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const el = (id) => document.getElementById(id);
+
+  Widget.onUpdate((p, { size }) => {
+    const barH = Math.max(4, Math.round(size.height * 0.35));
+    const textH = size.height - barH - 2;
+    const fs = Math.max(8, Math.round(textH * 0.8));
+
+    el('row').style.fontSize = fs + 'px';
+    el('row').style.color = p.textColor;
+    el('label').textContent = p.label || (p.sensor ? p.sensor.name : '');
+    el('num').textContent = Widget.format(p.sensor, p.decimals) + (p.sensor ? ' ' + p.sensor.unit : '');
+
+    const f = Widget.fraction(p.sensor ? p.sensor.value : null, Number(p.min), Number(p.max));
+    Object.assign(el('track').style, { height: barH + 'px', borderRadius: barH / 2 + 'px', background: p.trackColor });
+    el('fill').style.width = (f * 100).toFixed(1) + '%';
+    el('fill').style.backgroundColor = Widget.mix(p.color, p.colorHigh, f);
+  });
+</script>
+</body>
+</html>

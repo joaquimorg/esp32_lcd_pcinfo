@@ -1,0 +1,37 @@
+{
+  "name": "Graph",
+  "description": "Sensor history as a line.",
+  "size": {"w": 220, "h": 60},
+  "properties": [
+    {"key": "sensor", "type": "sensor", "label": "Sensor"},
+    {"key": "label", "type": "text", "label": "Caption", "default": ""},
+    {"key": "points", "type": "number", "label": "Points in history", "default": 60, "min": 10, "max": 600},
+    {"key": "autoScale", "type": "boolean", "label": "Auto scale", "default": false},
+    {"key": "min", "type": "number", "label": "Minimum", "default": 0},
+    {"key": "max", "type": "number", "label": "Maximum", "default": 100},
+    {"key": "decimals", "type": "number", "label": "Decimal places", "default": 0, "min": 0, "max": 3},
+    {"key": "color", "type": "color", "label": "Line colour", "default": "#00c8ff"},
+    {"key": "fill", "type": "boolean", "label": "Fill", "default": true},
+    {"key": "gridColor", "type": "color", "label": "Grid colour", "default": "#22252b"},
+    {"key": "textColor", "type": "color", "label": "Text colour", "default": "#9aa0a6"}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Gráfico",
+      "description": "Histórico de um sensor em linha.",
+      "properties": {
+        "sensor": {"label": "Sensor"},
+        "label": {"label": "Legenda"},
+        "points": {"label": "Pontos no histórico"},
+        "autoScale": {"label": "Escala automática"},
+        "min": {"label": "Mínimo"},
+        "max": {"label": "Máximo"},
+        "decimals": {"label": "Casas decimais"},
+        "color": {"label": "Cor da linha"},
+        "fill": {"label": "Preencher"},
+        "gridColor": {"label": "Cor da grelha"},
+        "textColor": {"label": "Cor do texto"}
+      }
+    }
+  }
+}

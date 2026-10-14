@@ -1,0 +1,33 @@
+{
+  "name": "Bar",
+  "description": "Horizontal bar with caption and value.",
+  "size": {"w": 200, "h": 34},
+  "properties": [
+    {"key": "sensor", "type": "sensor", "label": "Sensor"},
+    {"key": "label", "type": "text", "label": "Caption", "default": ""},
+    {"key": "min", "type": "number", "label": "Minimum", "default": 0},
+    {"key": "max", "type": "number", "label": "Maximum", "default": 100},
+    {"key": "decimals", "type": "number", "label": "Decimal places", "default": 0, "min": 0, "max": 3},
+    {"key": "color", "type": "color", "label": "Colour (low)", "default": "#00c8ff"},
+    {"key": "colorHigh", "type": "color", "label": "Colour (high)", "default": "#00c8ff"},
+    {"key": "trackColor", "type": "color", "label": "Background colour", "default": "#2a2d33"},
+    {"key": "textColor", "type": "color", "label": "Text colour", "default": "#d0d4da"}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Barra",
+      "description": "Barra horizontal com legenda e valor.",
+      "properties": {
+        "sensor": {"label": "Sensor"},
+        "label": {"label": "Legenda"},
+        "min": {"label": "Mínimo"},
+        "max": {"label": "Máximo"},
+        "decimals": {"label": "Casas decimais"},
+        "color": {"label": "Cor (baixo)"},
+        "colorHigh": {"label": "Cor (alto)"},
+        "trackColor": {"label": "Cor do fundo"},
+        "textColor": {"label": "Cor do texto"}
+      }
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "Value",
+  "description": "Caption and numeric value of a sensor.",
+  "size": {"w": 105, "h": 52},
+  "properties": [
+    {"key": "sensor", "type": "sensor", "label": "Sensor"},
+    {"key": "label", "type": "text", "label": "Caption", "default": ""},
+    {"key": "decimals", "type": "number", "label": "Decimal places", "default": 0, "min": 0, "max": 3},
+    {"key": "color", "type": "color", "label": "Value colour", "default": "#ffffff"},
+    {"key": "labelColor", "type": "color", "label": "Caption colour", "default": "#9aa0a6"},
+    {"key": "align", "type": "select", "label": "Alignment", "default": "center", "options": ["left", "center", "right"], "optionLabels": {"center": "centre"}},
+    {"key": "showUnit", "type": "boolean", "label": "Show unit", "default": true}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Valor",
+      "description": "Legenda e valor numérico de um sensor.",
+      "properties": {
+        "sensor": {"label": "Sensor"},
+        "label": {"label": "Legenda"},
+        "decimals": {"label": "Casas decimais"},
+        "color": {"label": "Cor do valor"},
+        "labelColor": {"label": "Cor da legenda"},
+        "align": {"label": "Alinhamento", "optionLabels": {"left": "esquerda", "center": "centro", "right": "direita"}},
+        "showUnit": {"label": "Mostrar unidade"}
+      }
+    }
+  }
+}

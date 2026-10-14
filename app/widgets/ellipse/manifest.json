@@ -1,0 +1,32 @@
+{
+  "name": "Circle / ellipse",
+  "description": "Circle or ellipse, filled or outline only, with optional gradient.",
+  "category": "shape",
+  "size": {"w": 80, "h": 80},
+  "properties": [
+    {"key": "circle", "type": "boolean", "label": "Keep circle", "default": true},
+    {"key": "filled", "type": "boolean", "label": "Fill", "default": true},
+    {"key": "fill", "type": "color", "label": "Colour", "default": "#3aa8ff"},
+    {"key": "gradient", "type": "select", "label": "Gradient", "default": "nenhum", "options": ["nenhum", "vertical", "horizontal", "radial"], "optionLabels": {"nenhum": "none"}},
+    {"key": "fill2", "type": "color", "label": "Gradient end colour", "default": "#0b1622"},
+    {"key": "borderWidth", "type": "number", "label": "Border (px)", "default": 0, "min": 0, "max": 40},
+    {"key": "borderColor", "type": "color", "label": "Border colour", "default": "#ffffff"},
+    {"key": "opacity", "type": "number", "label": "Opacity (%)", "default": 100, "min": 0, "max": 100}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Círculo / elipse",
+      "description": "Círculo ou elipse, cheio ou só o contorno, com gradiente opcional.",
+      "properties": {
+        "circle": {"label": "Manter círculo"},
+        "filled": {"label": "Preencher"},
+        "fill": {"label": "Cor"},
+        "gradient": {"label": "Gradiente"},
+        "fill2": {"label": "Cor final do gradiente"},
+        "borderWidth": {"label": "Contorno (px)"},
+        "borderColor": {"label": "Cor do contorno"},
+        "opacity": {"label": "Opacidade (%)"}
+      }
+    }
+  }
+}

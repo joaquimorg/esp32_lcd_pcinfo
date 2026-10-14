@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <title>USB LCD Widgets</title>
+  <link rel="stylesheet" href="control.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo"></span>USB LCD Widgets</div>
+    <nav class="tabs">
+      <button class="tab active" data-view="run" data-i18n="tab.run">Run</button>
+      <button class="tab" data-view="edit" data-i18n="tab.edit">Editor</button>
+      <button class="tab" data-view="settings" data-i18n="tab.settings">Settings</button>
+    </nav>
+    <div class="status">
+      <span class="pill" id="stDevice">ESP32</span>
+      <span class="pill" id="stLhm">LHM</span>
+      <span class="metric" id="stRate"></span>
+    </div>
+  </header>
+
+  <!-- ===== Execução ===== -->
+  <main id="viewRun" class="view view-run">
+    <section class="library">
+      <div class="lib-head">
+        <div>
+          <h1 data-i18n="run.title">Widgets</h1>
+          <p class="sub" data-i18n="run.subtitle"></p>
+        </div>
+        <div class="lib-actions">
+          <button id="runImport" class="btn" data-i18n="run.import"></button>
+          <button id="runNew" class="btn primary" data-i18n="run.new"></button>
+        </div>
+      </div>
+      <div id="runMsg" class="msg" hidden></div>
+      <div id="cards" class="cards"></div>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <div class="panel-head"><h2 data-i18n="now.title"></h2></div>
+        <div class="now">
+          <div class="now-lcd"><img id="runPreview" alt=""></div>
+          <div class="now-info">
+            <b id="nowName">—</b>
+            <span id="nowNext"></span>
+            <div class="now-controls">
+              <button id="prevScreen" class="btn small" data-i18n="now.prev" data-i18n-title="now.prevTitle"></button>
+              <button id="nextScreen" class="btn small" data-i18n="now.nextBtn" data-i18n-title="now.nextTitle"></button>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2 data-i18n="transitions.title"></h2></div>
+        <div id="transitionSettings" class="form"></div>
+      </section>
+    </aside>
+  </main>
+
+  <!-- ===== Definições ===== -->
+  <main id="viewSettings" class="view view-settings" hidden>
+    <div class="settings-page">
+      <h1 data-i18n="settings.title"></h1>
+      <div class="settings-grid">
+        <section class="panel">
+          <div class="panel-head"><h2 data-i18n="settings.general"></h2></div>
+          <div id="settingsGeneral" class="form"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2 data-i18n="settings.sensors"></h2></div>
+          <div id="settingsSensors" class="form"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2 data-i18n="settings.connection"></h2></div>
+          <div id="settingsConnection" class="form"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2 data-i18n="display.title"></h2></div>
+          <div id="displaySettings" class="form"></div>
+        </section>
+      </div>
+      <footer id="about" class="about"></footer>
+    </div>
+  </main>
+
+  <!-- ===== Editor ===== -->
+  <main id="viewEdit" class="view view-edit" hidden>
+    <aside class="col">
+      <section class="panel">
+        <div class="panel-head">
+          <h2 data-i18n="edit.widget">Widget</h2>
+          <button id="editNew" class="btn small" data-i18n="edit.new"></button>
+        </div>
+        <select id="editPicker"></select>
+        <div id="screenSettings" class="form" style="margin-top:12px"></div>
+        <div class="actions">
+          <button id="editExport" class="btn small" data-i18n="edit.export"></button>
+          <button id="editImport" class="btn small" data-i18n="edit.import"></button>
+          <button id="editDuplicate" class="btn small" data-i18n="edit.duplicate"></button>
+        </div>
+        <div id="editMsg" class="msg" hidden></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2 data-i18n="edit.layers"></h2></div>
+        <ul id="layers" class="list"></ul>
+      </section>
+    </aside>
+
+    <section class="center">
+      <div id="stage" class="stage">
+        <div id="lcd" class="lcd">
+          <img id="preview" alt="">
+          <div id="overlay"></div>
+        </div>
+      </div>
+      <p class="hint" data-i18n="edit.hint"></p>
+    </section>
+
+    <aside class="col">
+      <section class="panel grow">
+        <div class="panel-head"><h2 id="inspTitle"></h2></div>
+        <div id="inspector" class="form"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head">
+          <h2 data-i18n="edit.add"></h2>
+          <div class="row-actions">
+            <button id="reloadComponents" class="btn link" data-i18n="edit.reload" data-i18n-title="edit.reloadTitle"></button>
+            <button id="openFolder" class="btn link" data-i18n="edit.folder" data-i18n-title="edit.folderTitle"></button>
+          </div>
+        </div>
+        <div id="palette" class="palette"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2 data-i18n="ai.title"></h2></div>
+        <ol class="steps">
+          <li><button id="aiCopy" class="btn small" data-i18n="ai.copy"></button>
+            <span data-i18n="ai.step1"></span></li>
+          <li data-i18n="ai.step2"></li>
+          <li><button id="aiPaste" class="btn small primary" data-i18n="ai.paste"></button>
+            <span data-i18n="ai.or"></span> <button id="aiFile" class="btn link" data-i18n="ai.file"></button></li>
+        </ol>
+        <div id="aiMsg" class="msg" hidden></div>
+      </section>
+    </aside>
+  </main>
+
+  <script src="../i18n.js"></script>
+  <script src="common.js"></script>
+  <script src="run.js"></script>
+  <script src="settings.js"></script>
+  <script src="snap.js"></script>
+  <script src="editor.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

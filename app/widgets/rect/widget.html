@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+  <svg id="svg">
+    <defs><linearGradient id="grad"><stop id="s1" offset="0"/><stop id="s2" offset="1"/></linearGradient></defs>
+    <rect id="shape"/>
+  </svg>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const el = (id) => document.getElementById(id);
+  const GRADIENTS = { vertical: [0, 0, 0, 1], horizontal: [0, 0, 1, 0], diagonal: [0, 0, 1, 1] };
+
+  Widget.onUpdate((p, { size }) => {
+    const { width: w, height: h } = size;
+    const bw = Math.max(0, Number(p.borderWidth) || 0);
+    const g = GRADIENTS[p.gradient];
+    if (g) {
+      ['x1', 'y1', 'x2', 'y2'].forEach((k, i) => el('grad').setAttribute(k, g[i]));
+      el('s1').setAttribute('stop-color', p.fill);
+      el('s2').setAttribute('stop-color', p.fill2);
+    }
+    // O contorno é desenhado centrado na linha: recua meia espessura para ficar dentro.
+    const r = Math.max(0, Math.min(Number(p.radius) || 0, Math.min(w, h) / 2) - bw / 2);
+    el('svg').setAttribute('width', w);
+    el('svg').setAttribute('height', h);
+    Widget.attrs(el('shape'), {
+      x: bw / 2, y: bw / 2, width: Math.max(0, w - bw), height: Math.max(0, h - bw), rx: r, ry: r,
+      fill: p.filled ? (g ? 'url(#grad)' : p.fill) : 'none',
+      stroke: bw ? p.borderColor : 'none', 'stroke-width': bw,
+    });
+    document.body.style.opacity = Widget.opacity(p.opacity);
+  });
+</script>
+</body>
+</html>

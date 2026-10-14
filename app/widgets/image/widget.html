@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  #box { position: absolute; inset: 0; overflow: hidden; }
+  img, canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+           border: 1px dashed #555; color: #777; font: 11px "Segoe UI", system-ui, sans-serif; }
+</style>
+</head>
+<body>
+  <div id="box">
+    <img id="img" alt="">
+    <canvas id="still"></canvas>
+  </div>
+  <div id="empty"></div>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const el = (id) => document.getElementById(id);
+  const img = el('img');
+  const still = el('still');
+  let animate = true;
+
+  // Sem animação: mostra só o primeiro frame, desenhado num canvas (o <img>
+  // fica escondido e deixa de gerar frames para o LCD).
+  function drawStill() {
+    if (!img.naturalWidth) return;
+    still.width = img.naturalWidth;
+    still.height = img.naturalHeight;
+    still.getContext('2d').drawImage(img, 0, 0);
+  }
+  img.addEventListener('load', drawStill);
+
+  Widget.onUpdate((p, info) => {
+    el('empty').textContent = info.lang === 'pt' ? 'sem imagem' : 'no image';
+    if (p.file && img.getAttribute('src') !== p.file) img.src = p.file;
+    if (p.animate === false && animate) drawStill();
+    animate = p.animate !== false;
+
+    el('box').style.display = p.file ? '' : 'none';
+    el('empty').style.display = p.file ? 'none' : '';
+    img.style.display = animate ? '' : 'none';
+    still.style.display = animate ? 'none' : '';
+
+    for (const e of [img, still]) {
+      Object.assign(e.style, {
+        objectFit: p.fit,
+        imageRendering: p.pixelated ? 'pixelated' : 'auto',
+        transform: Number(p.rotation) ? `rotate(${Number(p.rotation)}deg)` : '',
+      });
+    }
+    el('box').style.borderRadius = (Number(p.radius) || 0) + 'px';
+    el('box').style.opacity = Widget.opacity(p.opacity);
+  });
+</script>
+</body>
+</html>

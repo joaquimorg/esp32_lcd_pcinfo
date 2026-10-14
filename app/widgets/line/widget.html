@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+  <svg id="svg"><line id="line"/></svg>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const svg = document.getElementById('svg');
+  const line = document.getElementById('line');
+
+  Widget.onUpdate((p, { size }) => {
+    const { width: w, height: h } = size;
+    const t = Math.max(1, Number(p.thickness) || 1);
+    const dotted = p.style === 'pontilhado';
+    const round = dotted || p.round;
+    // Com pontas redondas, recua meia espessura para a ponta caber no componente.
+    const m = round ? t / 2 : 0;
+    const ends = {
+      'horizontal': [m, h / 2, w - m, h / 2],
+      'vertical': [w / 2, m, w / 2, h - m],
+      'diagonal ↘': [m, m, w - m, h - m],
+      'diagonal ↗': [m, h - m, w - m, m],
+    }[p.direction] || [m, h / 2, w - m, h / 2];
+
+    svg.setAttribute('width', w);
+    svg.setAttribute('height', h);
+    ['x1', 'y1', 'x2', 'y2'].forEach((k, i) => line.setAttribute(k, ends[i]));
+    line.setAttribute('stroke', p.color);
+    line.setAttribute('stroke-width', t);
+    line.setAttribute('stroke-linecap', round ? 'round' : 'butt');
+    line.setAttribute('stroke-dasharray',
+      p.style === 'tracejado' ? `${t * 3} ${t * 2}` : dotted ? `0 ${t * 2}` : 'none');
+    document.body.style.opacity = Widget.opacity(p.opacity);
+  });
+</script>
+</body>
+</html>

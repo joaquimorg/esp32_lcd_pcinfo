@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+  <svg id="svg"><polygon id="shape" stroke-linejoin="round"/></svg>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const el = (id) => document.getElementById(id);
+
+  Widget.onUpdate((p, { size }) => {
+    const { width: w, height: h } = size;
+    const bw = Math.max(0, Number(p.borderWidth) || 0);
+    const n = Math.max(3, Math.min(24, Math.round(Number(p.sides) || 3)));
+    const rot = ((Number(p.rotation) || 0) * Math.PI) / 180;
+    const inner = Math.max(0.05, Math.min(0.95, (Number(p.inner) || 45) / 100));
+
+    // Vértices num círculo unitário (o primeiro no topo), com as pontas e os vales da estrela.
+    const pts = [];
+    const count = p.star ? n * 2 : n;
+    for (let i = 0; i < count; i++) {
+      const a = rot - Math.PI / 2 + (i * 2 * Math.PI) / count;
+      const r = p.star && i % 2 ? inner : 1;
+      pts.push([r * Math.cos(a), r * Math.sin(a)]);
+    }
+    // Estica a figura para ocupar o componente inteiro (menos o contorno).
+    const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const sx = (w - bw) / (maxX - minX), sy = (h - bw) / (maxY - minY);
+    const points = pts.map(([x, y]) => `${bw / 2 + (x - minX) * sx},${bw / 2 + (y - minY) * sy}`).join(' ');
+
+    el('svg').setAttribute('width', w);
+    el('svg').setAttribute('height', h);
+    Widget.attrs(el('shape'), {
+      points,
+      fill: p.filled ? p.fill : 'none',
+      stroke: bw ? p.borderColor : 'none', 'stroke-width': bw,
+    });
+    document.body.style.opacity = Widget.opacity(p.opacity);
+  });
+</script>
+</body>
+</html>

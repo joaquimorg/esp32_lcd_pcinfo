@@ -1,0 +1,28 @@
+{
+  "name": "Line",
+  "description": "Straight line: separators, frames, decorative strokes.",
+  "category": "shape",
+  "size": {"w": 200, "h": 8},
+  "properties": [
+    {"key": "direction", "type": "select", "label": "Direction", "default": "horizontal", "options": ["horizontal", "vertical", "diagonal ↘", "diagonal ↗"]},
+    {"key": "color", "type": "color", "label": "Colour", "default": "#ffffff"},
+    {"key": "thickness", "type": "number", "label": "Thickness (px)", "default": 2, "min": 1, "max": 40},
+    {"key": "style", "type": "select", "label": "Stroke", "default": "contínuo", "options": ["contínuo", "tracejado", "pontilhado"], "optionLabels": {"contínuo": "solid", "tracejado": "dashed", "pontilhado": "dotted"}},
+    {"key": "round", "type": "boolean", "label": "Round ends", "default": false},
+    {"key": "opacity", "type": "number", "label": "Opacity (%)", "default": 100, "min": 0, "max": 100}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Linha",
+      "description": "Linha reta: separadores, molduras, riscos decorativos.",
+      "properties": {
+        "direction": {"label": "Direção"},
+        "color": {"label": "Cor"},
+        "thickness": {"label": "Espessura (px)"},
+        "style": {"label": "Traço"},
+        "round": {"label": "Pontas redondas"},
+        "opacity": {"label": "Opacidade (%)"}
+      }
+    }
+  }
+}

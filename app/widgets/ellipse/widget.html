@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  svg { display: block; }
+</style>
+</head>
+<body>
+  <svg id="svg">
+    <defs>
+      <linearGradient id="lin"><stop class="s1" offset="0"/><stop class="s2" offset="1"/></linearGradient>
+      <radialGradient id="rad"><stop class="s1" offset="0"/><stop class="s2" offset="1"/></radialGradient>
+    </defs>
+    <ellipse id="shape"/>
+  </svg>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const el = (id) => document.getElementById(id);
+  const LINEAR = { vertical: [0, 0, 0, 1], horizontal: [0, 0, 1, 0] };
+
+  Widget.onUpdate((p, { size }) => {
+    const { width: w, height: h } = size;
+    const bw = Math.max(0, Number(p.borderWidth) || 0);
+    let rx = (w - bw) / 2, ry = (h - bw) / 2;
+    if (p.circle) rx = ry = Math.min(rx, ry);
+
+    for (const s of document.querySelectorAll('.s1')) s.setAttribute('stop-color', p.fill);
+    for (const s of document.querySelectorAll('.s2')) s.setAttribute('stop-color', p.fill2);
+    const lin = LINEAR[p.gradient];
+    if (lin) ['x1', 'y1', 'x2', 'y2'].forEach((k, i) => el('lin').setAttribute(k, lin[i]));
+    const paint = p.gradient === 'radial' ? 'url(#rad)' : lin ? 'url(#lin)' : p.fill;
+
+    el('svg').setAttribute('width', w);
+    el('svg').setAttribute('height', h);
+    Widget.attrs(el('shape'), {
+      cx: w / 2, cy: h / 2, rx: Math.max(0, rx), ry: Math.max(0, ry),
+      fill: p.filled ? paint : 'none',
+      stroke: bw ? p.borderColor : 'none', 'stroke-width': bw,
+    });
+    document.body.style.opacity = Widget.opacity(p.opacity);
+  });
+</script>
+</body>
+</html>

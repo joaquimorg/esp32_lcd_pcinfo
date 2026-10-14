@@ -1,0 +1,32 @@
+{
+  "name": "Rectangle",
+  "description": "Rectangle with rounded corners, border and gradient: panels, frames, backgrounds.",
+  "category": "shape",
+  "size": {"w": 160, "h": 80},
+  "properties": [
+    {"key": "filled", "type": "boolean", "label": "Fill", "default": true},
+    {"key": "fill", "type": "color", "label": "Colour", "default": "#1e3a5f"},
+    {"key": "gradient", "type": "select", "label": "Gradient", "default": "nenhum", "options": ["nenhum", "vertical", "horizontal", "diagonal"], "optionLabels": {"nenhum": "none"}},
+    {"key": "fill2", "type": "color", "label": "Gradient end colour", "default": "#0b1622"},
+    {"key": "borderWidth", "type": "number", "label": "Border (px)", "default": 0, "min": 0, "max": 40},
+    {"key": "borderColor", "type": "color", "label": "Border colour", "default": "#3aa8ff"},
+    {"key": "radius", "type": "number", "label": "Corner radius (px)", "default": 8, "min": 0, "max": 500},
+    {"key": "opacity", "type": "number", "label": "Opacity (%)", "default": 100, "min": 0, "max": 100}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Retângulo",
+      "description": "Retângulo com cantos arredondados, contorno e gradiente: painéis, molduras, fundos.",
+      "properties": {
+        "filled": {"label": "Preencher"},
+        "fill": {"label": "Cor"},
+        "gradient": {"label": "Gradiente"},
+        "fill2": {"label": "Cor final do gradiente"},
+        "borderWidth": {"label": "Contorno (px)"},
+        "borderColor": {"label": "Cor do contorno"},
+        "radius": {"label": "Raio dos cantos (px)"},
+        "opacity": {"label": "Opacidade (%)"}
+      }
+    }
+  }
+}

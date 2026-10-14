@@ -1,0 +1,70 @@
+{
+  "name": "usb-lcd-widgets",
+  "productName": "USB LCD Widgets",
+  "version": "0.7.0",
+  "description": "HTML widgets with live PC sensor data on a USB LCD (ESP32-S2)",
+  "author": "joaquim.org (https://joaquim.org)",
+  "homepage": "https://joaquim.org",
+  "license": "MIT",
+  "main": "src/main/main.js",
+  "private": true,
+  "scripts": {
+    "start": "node scripts/start.js",
+    "test": "node --test",
+    "dist": "electron-builder --win"
+  },
+  "dependencies": {
+    "serialport": "13.0.0"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.16.1"
+  },
+  "build": {
+    "appId": "pt.joaquim.usblcdwidgets",
+    "productName": "USB LCD Widgets",
+    "copyright": "Copyright © 2026 joaquim.org",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "widgets/**/*",
+      "docs/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/@serialport/bindings-cpp/prebuilds/win32-x64/**"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "USB LCD Widgets",
+      "artifactName": "USB-LCD-Widgets-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "USB-LCD-Widgets-Portable-${version}.${ext}"
+    }
+  }
+}

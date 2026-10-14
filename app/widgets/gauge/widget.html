@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  svg { width: 100%; height: 100%; display: block; }
+  text { font-family: "Segoe UI", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+  #value { transition: stroke-dashoffset .6s ease, stroke .6s ease; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 100 92" preserveAspectRatio="xMidYMid meet">
+  <path id="track" fill="none" stroke-linecap="round" pathLength="100"/>
+  <path id="value" fill="none" stroke-linecap="round" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100"/>
+  <text id="num" x="50" y="52" text-anchor="middle" font-size="22" font-weight="600"></text>
+  <text id="label" x="50" y="68" text-anchor="middle" font-size="9" fill="#9aa0a6"></text>
+</svg>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const CX = 50, CY = 50, START = 135, SWEEP = 270;
+
+  function arc(r) {
+    const pt = (deg) => {
+      const a = deg * Math.PI / 180;
+      return `${(CX + r * Math.cos(a)).toFixed(2)} ${(CY + r * Math.sin(a)).toFixed(2)}`;
+    };
+    return `M ${pt(START)} A ${r} ${r} 0 1 1 ${pt(START + SWEEP)}`;
+  }
+
+  const track = document.getElementById('track');
+  const value = document.getElementById('value');
+  const num = document.getElementById('num');
+  const label = document.getElementById('label');
+
+  Widget.onUpdate((p) => {
+    const thick = Math.max(2, Math.min(25, Number(p.thickness) || 9));
+    const d = arc(45 - thick / 2);
+    track.setAttribute('d', d);
+    value.setAttribute('d', d);
+    track.setAttribute('stroke-width', thick);
+    value.setAttribute('stroke-width', thick);
+    track.setAttribute('stroke', p.trackColor);
+
+    const v = p.sensor ? p.sensor.value : null;
+    const f = Widget.fraction(v, Number(p.min), Number(p.max));
+    value.setAttribute('stroke-dashoffset', (100 - f * 100).toFixed(2));
+    value.setAttribute('stroke', Widget.mix(p.color, p.colorHigh, f));
+    value.style.opacity = v == null ? 0 : 1;
+
+    const unit = p.sensor ? p.sensor.unit : '';
+    num.setAttribute('fill', p.textColor);
+    num.innerHTML = '';
+    num.append(Widget.format(p.sensor, p.decimals));
+    if (unit) {
+      const u = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+      u.setAttribute('font-size', '10');
+      u.setAttribute('dx', '1');
+      u.textContent = unit;
+      num.append(u);
+    }
+    label.textContent = p.label || (p.sensor ? p.sensor.name : '');
+  });
+</script>
+</body>
+</html>

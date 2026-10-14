@@ -1,0 +1,23 @@
+{
+  "name": "Clock",
+  "description": "PC time and date.",
+  "size": {"w": 220, "h": 120},
+  "properties": [
+    {"key": "seconds", "type": "boolean", "label": "Show seconds", "default": false},
+    {"key": "showDate", "type": "boolean", "label": "Show date", "default": true},
+    {"key": "color", "type": "color", "label": "Time colour", "default": "#ffffff"},
+    {"key": "dateColor", "type": "color", "label": "Date colour", "default": "#9aa0a6"}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Relógio",
+      "description": "Hora e data do PC.",
+      "properties": {
+        "seconds": {"label": "Mostrar segundos"},
+        "showDate": {"label": "Mostrar data"},
+        "color": {"label": "Cor da hora"},
+        "dateColor": {"label": "Cor da data"}
+      }
+    }
+  }
+}

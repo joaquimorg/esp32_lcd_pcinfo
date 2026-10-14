@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; frame-src file:; style-src 'self' 'unsafe-inline'">
+  <title>LCD</title>
+  <style>
+    html, body { margin: 0; padding: 0; overflow: hidden; background: #000; }
+    /* z-index: cada página é uma camada própria; sem isto, os iframes da página
+       antiga (com z-index) ficavam por cima do fundo da nova durante a transição. */
+    .page { position: absolute; left: 0; top: 0; overflow: hidden; z-index: 0; }
+    .page iframe { position: absolute; border: 0; background: transparent; }
+    #message { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+               color: #8b929c; font: 18px "Segoe UI", system-ui, sans-serif; text-align: center; padding: 20px; }
+    #message[hidden], #calibration[hidden] { display: none; }
+    #calibration { position: absolute; left: 0; top: 0; }
+  </style>
+</head>
+<body>
+  <div id="page" class="page"></div>
+  <div id="message" hidden></div>
+  <canvas id="calibration" hidden></canvas>
+  <script src="../i18n.js"></script>
+  <script src="display.js"></script>
+</body>
+</html>

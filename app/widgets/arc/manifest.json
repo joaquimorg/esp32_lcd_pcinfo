@@ -1,0 +1,30 @@
+{
+  "name": "Arc",
+  "description": "Fixed arc or ring: dial frames, decorative rims.",
+  "category": "shape",
+  "size": {"w": 120, "h": 120},
+  "properties": [
+    {"key": "start", "type": "number", "label": "Start (degrees, 0 = top)", "default": -135, "min": -360, "max": 360},
+    {"key": "end", "type": "number", "label": "End (degrees)", "default": 135, "min": -360, "max": 360},
+    {"key": "color", "type": "color", "label": "Colour", "default": "#3aa8ff"},
+    {"key": "colorEnd", "type": "color", "label": "End colour", "default": "#3aa8ff"},
+    {"key": "thickness", "type": "number", "label": "Thickness (px)", "default": 8, "min": 1, "max": 200},
+    {"key": "round", "type": "boolean", "label": "Round ends", "default": true},
+    {"key": "opacity", "type": "number", "label": "Opacity (%)", "default": 100, "min": 0, "max": 100}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Arco",
+      "description": "Arco ou anel fixo: molduras de mostradores, aros decorativos.",
+      "properties": {
+        "start": {"label": "Início (graus, 0 = topo)"},
+        "end": {"label": "Fim (graus)"},
+        "color": {"label": "Cor"},
+        "colorEnd": {"label": "Cor no fim"},
+        "thickness": {"label": "Espessura (px)"},
+        "round": {"label": "Pontas redondas"},
+        "opacity": {"label": "Opacidade (%)"}
+      }
+    }
+  }
+}

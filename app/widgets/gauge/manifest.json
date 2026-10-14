@@ -1,0 +1,35 @@
+{
+  "name": "Gauge",
+  "description": "270° arc with a sensor value in the centre.",
+  "size": {"w": 180, "h": 165},
+  "properties": [
+    {"key": "sensor", "type": "sensor", "label": "Sensor"},
+    {"key": "label", "type": "text", "label": "Caption", "default": ""},
+    {"key": "min", "type": "number", "label": "Minimum", "default": 0},
+    {"key": "max", "type": "number", "label": "Maximum", "default": 100},
+    {"key": "decimals", "type": "number", "label": "Decimal places", "default": 0, "min": 0, "max": 3},
+    {"key": "color", "type": "color", "label": "Colour (low)", "default": "#00c8ff"},
+    {"key": "colorHigh", "type": "color", "label": "Colour (high)", "default": "#ff3b30"},
+    {"key": "trackColor", "type": "color", "label": "Arc background colour", "default": "#2a2d33"},
+    {"key": "textColor", "type": "color", "label": "Text colour", "default": "#ffffff"},
+    {"key": "thickness", "type": "number", "label": "Thickness", "default": 9, "min": 2, "max": 25}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Gauge",
+      "description": "Arco de 270° com o valor de um sensor ao centro.",
+      "properties": {
+        "sensor": {"label": "Sensor"},
+        "label": {"label": "Legenda"},
+        "min": {"label": "Mínimo"},
+        "max": {"label": "Máximo"},
+        "decimals": {"label": "Casas decimais"},
+        "color": {"label": "Cor (baixo)"},
+        "colorHigh": {"label": "Cor (alto)"},
+        "trackColor": {"label": "Cor do fundo do arco"},
+        "textColor": {"label": "Cor do texto"},
+        "thickness": {"label": "Espessura"}
+      }
+    }
+  }
+}
