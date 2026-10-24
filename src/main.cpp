@@ -28,7 +28,7 @@
  */
 
 #include <Arduino.h>
-#include <TFT_eSPI.h>
+#include "lcd.h"
 #include <Preferences.h>
 #include "protocol.h"
 
@@ -46,6 +46,10 @@
 #define USBD_LCD_DMA 0
 #endif
 
+#if LCD_BACKEND_GFX && USBD_LCD_DMA
+#error "USBD_LCD_DMA só existe com o TFT_eSPI"
+#endif
+
 #if ARDUINO_USB_CDC_ON_BOOT && !LCD_TRANSPORT_UART
 #error "este firmware tem de compilar com ARDUINO_USB_CDC_ON_BOOT=0 (ver platformio.ini)"
 #endif
@@ -57,9 +61,10 @@
 #define RX_RING_SIZE     32768  // potência de 2
 #define TX_RING_SIZE     2048   // potência de 2
 #define IDLE_TIMEOUT_MS  3000   // sem pacotes durante este tempo -> ecrã de espera
+#define SCREEN_OFF_MS    300000 // sem pacotes durante 5 min -> desliga o ecrã (AMOLED: evita burn-in)
 #define RX_STALL_MS      10000  // porta aberta e nada recebido: USB encravado -> reinicia
 
-static TFT_eSPI tft;
+static Lcd tft;
 
 static void onIdle();
 static void onViewportChanged();
@@ -666,7 +671,7 @@ static bool handlePacket(const PacketHeader& h)
       HelloReply r = { PROTO_VERSION, (uint16_t)tft.width(), (uint16_t)tft.height(),
                        (uint8_t)((USBD_LCD_DMA ? HELLO_FLAG_DMA : 0) | HELLO_FLAG_LZ4),
                        vp.x, vp.y, vp.w, vp.h, bootResetReason, bootRestartCause, lang,
-                       (uint8_t)(LCD_TRANSPORT_UART ? TRANSPORT_UART : TRANSPORT_USB_CDC) };
+                       (uint8_t)(LCD_TRANSPORT_UART ? TRANSPORT_UART : TRANSPORT_USB_CDC), LCD_ALIGN };
       sendReply(RSP_HELLO, &r, sizeof(r));
       return true;
     }
@@ -688,7 +693,7 @@ static bool handlePacket(const PacketHeader& h)
         return true;
       }
       if (!rxRead(c, 2)) return false;
-      tft.fillRect(h.x, h.y, h.w, h.h, (c[0] << 8) | c[1]);
+      lcdFillRect(tft, h.x, h.y, h.w, h.h, (c[0] << 8) | c[1]);
       return true;
     }
 
@@ -756,6 +761,7 @@ static bool handlePacket(const PacketHeader& h)
 #define SPINNER_DOTS 10
 
 static bool waiting = false;
+static bool screenOff = false;   // ecrã desligado por falta de dados; acorda com o próximo pacote
 static uint32_t lastPacketMs = 0;
 static uint8_t waitStatus = 0xFF;
 static uint8_t spinnerStep = 0;
@@ -771,8 +777,8 @@ static int waitY(int y) { return vp.y + y * vp.h / 320; }
 static void drawSpinnerDot(int i, uint16_t color)
 {
   float a = i * 2 * PI / SPINNER_DOTS - PI / 2;
-  int r = min(28, vp.h / 11);
-  tft.fillCircle(waitX(120) + cosf(a) * r, waitY(115) + sinf(a) * r, 5, color);
+  int r = min(48, vp.h / 11);
+  tft.fillCircle(waitX(120) + cosf(a) * r, waitY(115) + sinf(a) * r, max(5, vp.h / 60), color);
 }
 
 static void drawWaitingScreen()
@@ -794,6 +800,7 @@ static void drawWaitingScreen()
 
   tft.setTextColor(tft.color565(90, 96, 105), TFT_BLACK);
   tft.drawString(String(vp.w) + " x " + String(vp.h), cx, vp.y + vp.h - 14, 2);
+  lcdPresent(tft);
   waitStatus = 0xFF;
 }
 
@@ -810,6 +817,7 @@ static void drawWaitingStatus(uint8_t status)
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(color[status], TFT_BLACK);
   tft.drawString(text[lang][status], waitX(120), y, 2);
+  lcdPresent(tft);
 }
 
 static void enterWaiting()
@@ -834,6 +842,12 @@ static void onIdle()
     enterWaiting();
   }
 
+  if (!screenOff && now - lastPacketMs >= SCREEN_OFF_MS) {
+    lcdSleep(tft);
+    screenOff = true;
+  }
+  if (screenOff) return;   // nada a desenhar com o ecrã desligado
+
 #if LCD_TRANSPORT_UART
   // Sem USB nativo não se sabe se o cabo está ligado: só se vê se a app fala.
   uint8_t status = lastRxMs && now - lastRxMs < 2500 ? 2 : 1;
@@ -852,6 +866,7 @@ static void onIdle()
     drawSpinnerDot((spinnerStep + SPINNER_DOTS - 2) % SPINNER_DOTS, tft.color565(30, 80, 125));
     drawSpinnerDot((spinnerStep + SPINNER_DOTS - 1) % SPINNER_DOTS, tft.color565(44, 124, 190));
     drawSpinnerDot(spinnerStep, accentColor());
+    lcdPresent(tft);
     spinnerStep = (spinnerStep + 1) % SPINNER_DOTS;
   }
 }
@@ -867,6 +882,9 @@ void setup()
   // Ver nota no topo: interface CDC própria em vez do Serial.
   tinyusb_enable_interface(USB_INTERFACE_CDC, TUD_CDC_DESC_LEN, loadCdcDescriptor);
   USB.productName("USB Display");
+#ifdef LCD_USB_PID
+  USB.PID(LCD_USB_PID);   // o PID por omissão da placa (0x1001) é o do USB-Serial-JTAG: a app ignora-o
+#endif
   USB.begin();
 #endif
 
@@ -896,6 +914,10 @@ void loop()
     return;
   }
 
+  if (screenOff) {
+    lcdWake(tft);
+    screenOff = false;
+  }
   if (!handlePacket(h)) {
     // O PC parou a meio do pacote: o LCD pode ficar com o retângulo parcial.
     sendError(ERR_RX_TIMEOUT, h.type);

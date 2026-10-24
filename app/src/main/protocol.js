@@ -229,12 +229,38 @@ const LZ4_MAX_PIXELS = 8192;
 const TILE_W = 16, TILE_H = 16;
 const MERGE_GAP = 1;   // tiles limpos que ainda se juntam a dois alterados vizinhos
 
-/** Parte um retângulo em faixas de até LZ4_MAX_PIXELS pixels. */
-function splitRect([x, y, w, h]) {
-  const rows = Math.max(1, Math.floor(LZ4_MAX_PIXELS / w));
+/**
+ * Parte um retângulo em faixas de até LZ4_MAX_PIXELS pixels. Com align > 1 as
+ * faixas têm um número de linhas múltiplo de align.
+ */
+function splitRect([x, y, w, h], align = 1) {
+  let rows = Math.max(1, Math.floor(LZ4_MAX_PIXELS / w));
+  if (align > 1) rows = Math.max(align, rows - (rows % align));
   const out = [];
   for (let y0 = 0; y0 < h; y0 += rows) out.push([x, y + y0, w, Math.min(rows, h - y0)]);
   return out;
+}
+
+/**
+ * Alarga um retângulo (em coordenadas do frame) para que, deslocado de offX/offY
+ * para o controlador, x, y, largura e altura sejam múltiplos de align (os
+ * AMOLED não aceitam janelas ímpares). Fica sempre dentro do frame, que tem de
+ * ter o início e o tamanho alinhados (ver alignViewport).
+ */
+function alignRect([x, y, w, h], align, offX, offY, width, height) {
+  if (align <= 1) return [x, y, w, h];
+  const lo = (v, off) => Math.floor((v + off) / align) * align - off;
+  const hi = (v, off) => Math.ceil((v + off) / align) * align - off;
+  const x0 = Math.max(0, lo(x, offX)), x1 = Math.min(width, hi(x + w, offX));
+  const y0 = Math.max(0, lo(y, offY)), y1 = Math.min(height, hi(y + h, offY));
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+
+/** Área visível com início e tamanho múltiplos de align (para os AMOLED). */
+function alignViewport(vp, align = 1) {
+  if (align <= 1) return vp;
+  const down = (v) => Math.floor(v / align) * align;
+  return { x: down(vp.x), y: down(vp.y), width: down(vp.width), height: down(vp.height) };
 }
 
 /**
@@ -245,10 +271,10 @@ function splitRect([x, y, w, h]) {
  * não arrasta a largura toda. Sem frame anterior devolve o ecrã inteiro.
  * O array traz changedPx, o número de pixels diferentes.
  */
-function dirtyRects(prev, cur, width, height) {
+function dirtyRects(prev, cur, width, height, { align = 1, offX = 0, offY = 0 } = {}) {
   let rects;
   if (!prev || prev.length !== cur.length) {
-    rects = splitRect([0, 0, width, height]);
+    rects = splitRect(alignRect([0, 0, width, height], align, offX, offY, width, height), align);
     rects.changedPx = width * height;
     return rects;
   }
@@ -318,7 +344,9 @@ function dirtyRects(prev, cur, width, height) {
   }
 
   rects = [];
-  for (const r of all) rects.push(...splitRect([r.x0, r.y0, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1]));
+  for (const r of all) {
+    rects.push(...splitRect(alignRect([r.x0, r.y0, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1], align, offX, offY, width, height), align));
+  }
   rects.changedPx = changedPx;
   return rects;
 }
@@ -345,8 +373,8 @@ function rectPacket(frame, stride, x, y, w, h, offX = 0, offY = 0, lz4 = false) 
  * offX/offY deslocam-no para a posição dessa área no controlador do LCD.
  * O array traz stats: { rects, changedPx, sentPx }.
  */
-function encodeFrame(prev, cur, width, height, offX = 0, offY = 0, { lz4 = false } = {}) {
-  const rects = dirtyRects(prev, cur, width, height);
+function encodeFrame(prev, cur, width, height, offX = 0, offY = 0, { lz4 = false, align = 1 } = {}) {
+  const rects = dirtyRects(prev, cur, width, height, { align, offX, offY });
   const packets = rects.map(([x, y, w, h]) => rectPacket(cur, width, x, y, w, h, offX, offY, lz4));
   packets.stats = { rects: rects.length, changedPx: rects.changedPx, sentPx: rects.reduce((n, r) => n + r[2] * r[3], 0) };
   return packets;
@@ -407,6 +435,8 @@ function parseHello(p) {
     lang: p.length >= 17 ? p[16] : null,
     // Como o ESP32 está ligado ao PC (TRANSPORT_*); firmwares antigos usam o USB nativo.
     transport: p.length >= 18 && p[17] === 1 ? 'uart' : 'usb',
+    // 2 = o LCD só aceita retângulos com x, y, largura e altura pares (AMOLED).
+    align: p.length >= 19 && p[18] >= 2 ? p[18] : 1,
   };
 }
 
@@ -445,5 +475,5 @@ function parseError(p) {
 
 module.exports = {
   PKT, RSP, packet, syncPacket, bgraToRgb565, rectPixels, toWire, rleEncode, rleDecode,
-  dirtyRects, splitRect, rectPacket, lz4Compress, lz4Decompress, LZ4_MAX_PIXELS, encodeFrame, fillPacket, ReplyParser, parseHello, parseAck, parseError, describeReset, LCD_LANGS,
+  dirtyRects, splitRect, alignRect, alignViewport, rectPacket, lz4Compress, lz4Decompress, LZ4_MAX_PIXELS, encodeFrame, fillPacket, ReplyParser, parseHello, parseAck, parseError, describeReset, LCD_LANGS,
 };

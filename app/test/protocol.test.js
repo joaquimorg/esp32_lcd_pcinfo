@@ -187,3 +187,52 @@ test('HELLO: bit 1 das flags indica suporte de LZ4', () => {
   p[5] = 1;
   assert.strictEqual(P.parseHello(p).lz4, false);
 });
+
+test('align 2 (AMOLED): todos os retângulos têm x, y, largura e altura pares e o frame chega inteiro', () => {
+  const CW = 410, CH = 502, VX = 4, VY = 20, VW = 400, VH = 480;   // área visível com desvio par
+  const ctrl = new Uint16Array(CW * CH);
+  let prev = null;
+  let seed = 7;
+  const rnd = (n) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+  for (let step = 0; step < 12; step++) {
+    const cur = prev ? prev.slice() : new Uint16Array(VW * VH);
+    // Alterações pequenas em sítios ímpares: 1 pixel, linhas finas e um bloco.
+    for (let k = 0; k < 5; k++) cur[rnd(VH) * VW + rnd(VW)] = 1 + rnd(60000);
+    const bx = 1 + rnd(300) * 1, by = 3 + rnd(400);
+    for (let y = by; y < by + 7; y++) for (let x = bx; x < bx + 13; x++) cur[y * VW + x] = 0x1234 + step;
+    const packets = P.encodeFrame(prev, cur, VW, VH, VX, VY, { lz4: true, align: 2 });
+    for (const p of packets) {
+      const x = p.readUInt16LE(4), y = p.readUInt16LE(6), w = p.readUInt16LE(8), h = p.readUInt16LE(10);
+      assert.deepStrictEqual([x % 2, y % 2, w % 2, h % 2], [0, 0, 0, 0], `rect ${x},${y} ${w}x${h}`);
+      assert.ok(x >= VX && y >= VY && x + w <= VX + VW && y + h <= VY + VH, 'dentro da área visível');
+      const payload = p.subarray(16);
+      const bytes = p[2] === P.PKT.RECT_LZ4 ? P.lz4Decompress(payload, w * h * 2) : p[2] === P.PKT.RECT_RLE ? P.rleDecode(payload) : payload;
+      for (let k = 0; k < w * h; k++) ctrl[(y + Math.floor(k / w)) * CW + x + (k % w)] = (bytes[2 * k] << 8) | bytes[2 * k + 1];
+    }
+    for (let y = 0; y < VH; y++) {
+      for (let x = 0; x < VW; x++) {
+        if (ctrl[(y + VY) * CW + x + VX] !== cur[y * VW + x]) assert.fail(`passo ${step}: pixel (${x},${y}) difere`);
+      }
+    }
+    prev = cur;
+  }
+});
+
+test('align: as faixas do ecrã inteiro têm linhas pares e cabem no buffer do LZ4', () => {
+  for (const r of P.dirtyRects(null, new Uint16Array(410 * 502), 410, 502, { align: 2 })) {
+    assert.ok(r[3] % 2 === 0 && r[2] * r[3] <= P.LZ4_MAX_PIXELS, `${r}`);
+  }
+});
+
+test('alignViewport arredonda para baixo só quando o LCD pede', () => {
+  const vp = { x: 3, y: 21, width: 401, height: 479 };
+  assert.deepStrictEqual(P.alignViewport(vp, 1), vp);
+  assert.deepStrictEqual(P.alignViewport(vp, 2), { x: 2, y: 20, width: 400, height: 478 });
+});
+
+test('HELLO: byte de alinhamento (firmwares antigos = 1)', () => {
+  const p = Buffer.alloc(19);
+  p[17] = 0; p[18] = 2;
+  assert.strictEqual(P.parseHello(p).align, 2);
+  assert.strictEqual(P.parseHello(p.subarray(0, 18)).align, 1);
+});

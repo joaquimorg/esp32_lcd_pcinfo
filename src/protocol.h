@@ -101,6 +101,7 @@ struct HelloReply {
   uint8_t  restartCause;  // RESTART_*: quem pediu o último esp_restart()
   uint8_t  lang;          // LANG_*: idioma do ecrã de espera (PKT_LANG)
   uint8_t  transport;     // TRANSPORT_*: como o ESP32 está ligado ao PC
+  uint8_t  align;         // 1 = qualquer retângulo; 2 = x, y, w, h pares (AMOLED)
 };
 
 enum Transport : uint8_t {

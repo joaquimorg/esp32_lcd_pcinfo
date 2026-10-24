@@ -56,6 +56,7 @@ let tray = null;
 let thumbnailer = null;
 let size = { width: 240, height: 320 };        // área visível: o tamanho dos widgets
 let controller = { width: 240, height: 320 };  // controlador do LCD (reportado pelo ESP32)
+let deviceAlign = 1;   // 2 nos AMOLED: a área visível tem de ter x, y, largura e altura pares
 let renderGeom = { x: 0, y: 0, width: 240, height: 320 };  // o que a janela do LCD desenha agora
 let calibrating = false;
 let lastPreview = 0;
@@ -129,11 +130,12 @@ function viewport() {
   if (!d) return { x: 0, y: 0, width: controller.width, height: controller.height };
   const x = clamp(Math.round(d.x) || 0, 0, controller.width - 16);
   const y = clamp(Math.round(d.y) || 0, 0, controller.height - 16);
-  return {
+  const vp = {
     x, y,
     width: clamp(Math.round(d.width) || controller.width, 16, controller.width - x),
     height: clamp(Math.round(d.height) || controller.height, 16, controller.height - y),
   };
+  return P.alignViewport(vp, deviceAlign);
 }
 
 function clamp(v, lo, hi) {
@@ -604,6 +606,7 @@ device.on('connected', (info) => {
     + (info.reset ? `, último arranque: ${P.describeReset(info.reset, I18N.translator('pt'))}` : '') + ')');
   deviceErrors = 0;
   controller = { width: info.width, height: info.height };
+  deviceAlign = info.align || 1;
   state.lastPort = info.path;
   state.controller = controller;
   store.saveState(state);

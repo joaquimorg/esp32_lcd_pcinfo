@@ -96,13 +96,24 @@ need a new environment.
 | `lolin_s2_mini` | [LOLIN (WEMOS) S2 Mini](https://www.wemos.cc/en/latest/s2/s2_mini.html) (ESP32-S2) | 240×320 SPI, ST7789 | native USB |
 | `cyd28_ili9341` | ESP32 CYD 2.8" (ESP32-2432S028R) | 240×320, ILI9341 | USB-serial chip (CH340/CP210x), 921600 baud |
 | `cyd28_st7789` | the same CYD, ST7789 variant | 240×320, ST7789 | as above |
+| `waveshare_amoled_206` | Waveshare ESP32-S3-Touch-AMOLED-2.06 (ESP32-S3R8) | 410×502 AMOLED, CO5300 over QSPI | native USB |
 
 If the CYD colours look wrong (blue/red swapped or inverted), try the other
 CYD environment. The CYD's touch screen is not used yet.
 
+The AMOLED board uses the [GFX Library for Arduino](https://github.com/moononournation/Arduino_GFX)
+instead of TFT_eSPI (pins from Waveshare's official `pin_config.h`). The
+CO5300 only accepts windows with even x, y, width and height, so the firmware
+tells the app (`align` in the HELLO reply) and the app widens every rectangle,
+and the visible area, to even values. Its first flash needs the board in
+bootloader mode (hold **BOOT**, press **RESET**); the factory USB port is the
+native USB, which this firmware takes over. The touch screen, the power chip
+and the other sensors are not used.
+
 To add another board or panel, copy an environment and change the
 [TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) driver, size and pin flags. Add
-`-D LCD_TRANSPORT_UART=1` if the board has no native USB.
+`-D LCD_TRANSPORT_UART=1` if the board has no native USB, or look at
+[src/lcd.h](src/lcd.h) to add a display library of your own.
 
 ### LOLIN S2 Mini wiring
 
@@ -318,6 +329,7 @@ restarted.
 |---|---|
 | [src/](src) | ESP32 firmware (`main.cpp`, `protocol.h`) |
 | [platformio.ini](platformio.ini) | One environment per board/LCD: driver, pins and PC link |
+| [src/lcd.h](src/lcd.h) | Display layer: TFT_eSPI (SPI LCDs) or GFX Library for Arduino (QSPI AMOLED) |
 | [lib/TFT_eSPI](lib/TFT_eSPI) | LCD library |
 | [app/src/main](app/src/main) | App main process: USB link, frame encoding, sensors, settings, widget rotation, `.lcdwidget` files |
 | [app/src/display](app/src/display) | Offscreen page that composes the LCD and runs the transitions |

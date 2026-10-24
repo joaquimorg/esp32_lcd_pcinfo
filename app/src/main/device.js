@@ -362,7 +362,7 @@ function describePort(p) {
   let usable = false;   // pode ter o firmware do LCD?
   if (vid === ESPRESSIF_VID && pid === '1001') [kind, short] = ['jtag', 'Espressif JTAG'];
   else if (vid === ESPRESSIF_VID && pid === '0002') [kind, short] = ['boot', 'bootloader'];
-  else if (vid === ESPRESSIF_VID) { [kind, short] = ['native', 'ESP32-S2']; usable = true; }
+  else if (vid === ESPRESSIF_VID) { [kind, short] = ['native', 'ESP32-S2/S3']; usable = true; }
   else if (USB_UART_VIDS[vid]) {
     [kind, short, uart] = ['uart', USB_UART_VIDS[vid], USB_UART_VIDS[vid]];
     usable = UART_AUTO_VIDS.has(vid);

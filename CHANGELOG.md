@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**More boards and displays**
+- New environment `waveshare_amoled_206` for the Waveshare ESP32-S3-Touch-AMOLED-2.06
+  (410×502 AMOLED, CO5300 over QSPI, native USB), using the GFX Library for
+  Arduino through a new display layer (`src/lcd.h`). Not tested on the real
+  board yet.
+- The HELLO reply has an `align` byte: with 2 the app widens every rectangle
+  and the visible area to even x, y, width and height, as the CO5300 requires.
+
 ## 0.10.0
 
 **New components**

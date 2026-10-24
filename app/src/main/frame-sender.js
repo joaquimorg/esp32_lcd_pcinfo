@@ -123,7 +123,7 @@ class FrameSender {
       const frame = this.pending;
       this.pending = null;
       const { x, y, width, height } = this.geom;
-      const packets = P.encodeFrame(this.lastSent, frame, width, height, x, y, { lz4: !!this.device.info?.lz4 });
+      const packets = P.encodeFrame(this.lastSent, frame, width, height, x, y, { lz4: !!this.device.info?.lz4, align: this.device.info?.align || 1 });
       this.count(packets);
       if (this.needsClear && !this.lastSent) {
         // Limpa o que ficou fora da área (ecrã de espera, área antiga maior).
