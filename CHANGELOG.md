@@ -1,12 +1,33 @@
 # Changelog
 
-## Unreleased
+## 0.11.0
+
+**Zoom to the LCD size**
+- A widget remembers the size it was designed for (shown in the editor as
+  "Design size"). On an LCD of another size, for example after changing the
+  board, it is zoomed to fill the new LCD without distorting text or shapes,
+  and without touching the design: switch back to the old board and nothing
+  was lost. The same widget can be used on several boards.
+- Settings → LCD screen → **Scale widgets to the LCD**: *Automatic* (Fill when
+  the proportions are similar, Fit when they are very different), *Fit* (even
+  zoom, centred), *Fill* (the layout stretches to the whole LCD; each
+  component's contents are zoomed by the smaller factor) or *Off* (1:1, as in
+  older versions). With the same size nothing changes.
+- The editor always edits in design coordinates and shows the zoomed result
+  (in Fit it outlines the design area). **Use the LCD size** makes the LCD
+  size the design size, without moving the components.
+- `.lcdwidget` files carry the design size. Existing widgets are stamped with
+  the size of the LCD they were using when you update.
+- Components in a canvas (graph, level, trend, sensor list) use the new
+  `Widget.canvas()` helper and `info.scale`, so they stay sharp when zoomed.
 
 **More boards and displays**
 - New environment `waveshare_amoled_206` for the Waveshare ESP32-S3-Touch-AMOLED-2.06
   (410×502 AMOLED, CO5300 over QSPI, native USB), using the GFX Library for
-  Arduino through a new display layer (`src/lcd.h`). Not tested on the real
-  board yet.
+  Arduino through a new display layer (`src/lcd.h`). Tested over USB on the
+  real board (frames, LZ4 updates, no errors).
+- The screen turns off after 5 minutes without data from the PC (AMOLED
+  burn-in; the CYD backlight too) and wakes with the next packet.
 - The HELLO reply has an `align` byte: with 2 the app widens every rectangle
   and the visible area to even x, y, width and height, as the CO5300 requires.
 

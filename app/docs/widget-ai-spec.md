@@ -140,6 +140,10 @@ Widget.onUpdate((props, info) => {
     texto mudar.
 - Ajusta tamanhos de letra e elementos a `info.size`, para que o widget fique
   bem tanto pequeno (ex: 100×50) como grande (ex: 240×200).
+- A app pode ampliar o ecrã inteiro para um LCD maior: trabalha sempre nas unidades de
+  `info.size` (o SDK amplia a página por ti). Se desenhares num `<canvas>`, obtém o contexto com
+  `const ctx = Widget.canvas(canvas, info.size, info.scale);` em cada atualização, em vez de
+  definires `canvas.width`, para ficar nítido.
 
 ## 5. Exemplo completo
 

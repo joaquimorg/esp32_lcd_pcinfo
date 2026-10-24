@@ -143,6 +143,10 @@ Widget.onUpdate((props, info) => {
     when the text changes.
 - Scale font sizes and elements to `info.size`, so the widget looks good both
   small (e.g. 100×50) and large (e.g. 240×200).
+- The app may zoom the whole screen to a bigger LCD: always work in `info.size`
+  units (the SDK zooms the page for you). If you draw on a `<canvas>`, get its
+  context with `const ctx = Widget.canvas(canvas, info.size, info.scale);` on
+  every update instead of setting `canvas.width` yourself, so it stays sharp.
 
 ## 5. Complete example
 

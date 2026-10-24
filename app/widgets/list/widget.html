@@ -22,10 +22,8 @@
     return text + '…';
   }
 
-  function draw(p, w, h) {
-    canvas.width = w;
-    canvas.height = h;
-    ctx.clearRect(0, 0, w, h);
+  function draw(p, w, h, scale = 1) {
+    Widget.canvas(canvas, { width: w, height: h }, scale);
     const rows = [];
     for (let i = 1; i <= ROWS; i++) {
       const s = p['sensor' + i];
@@ -60,7 +58,7 @@
     });
   }
 
-  Widget.onUpdate((p, { size }) => draw(p, size.width, size.height));
+  Widget.onUpdate((p, { size, scale }) => draw(p, size.width, size.height, scale));
 </script>
 </body>
 </html>

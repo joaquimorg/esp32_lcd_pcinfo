@@ -11,6 +11,7 @@ const { ConfigStore, newId } = require('./config');
 const { Player } = require('./player');
 const { Thumbnailer } = require('./thumbnails');
 const { exportScreen, importScreen } = require('./screens');
+const Scaling = require('../scaling');
 const { scanWidgets, withDefaults, ensureUserWidgetsDir, importWidget } = require('./widgets');
 const { imageFileSize } = require('./images');
 const { TRANSITIONS, resolveTransition } = require('./transitions');
@@ -163,6 +164,21 @@ function applyGeometry() {
   sendStatus();
 }
 
+/**
+ * Ecrãs sem tamanho de desenho (criados antes da ampliação) ficam com o do LCD
+ * que têm agora: foi com esse que foram desenhados.
+ */
+function stampDesign() {
+  let changed = false;
+  for (const s of config.screens) {
+    if (!s.design) {
+      s.design = { width: size.width, height: size.height };
+      changed = true;
+    }
+  }
+  if (changed) store.save(config);
+}
+
 function setCalibrating(on) {
   if (calibrating === !!on) return;
   calibrating = !!on;
@@ -190,6 +206,7 @@ function buildLayout(screen, animate = false) {
   if (!screen) {
     return { screenId: null, width: size.width, height: size.height, background: '#000000', lang: language(), components: [], message: t('msg.noActive') };
   }
+  const mapping = Scaling.compute(screen.design || size, size, config.scaleMode);
   return {
     screenId: screen.id,
     lang: language(),
@@ -201,6 +218,7 @@ function buildLayout(screen, animate = false) {
       .filter((c) => catalog[c.type])
       .map((c) => {
         const type = catalog[c.type];
+        const b = Scaling.box(c, mapping);
         const props = withDefaults(type, c.props);
         for (const p of type.properties) {
           if (p.type === 'file' && props[p.key]) props[p.key] = pathToFileURL(props[p.key]).href;
@@ -208,7 +226,8 @@ function buildLayout(screen, animate = false) {
         return {
           id: c.id,
           url: type.url,
-          x: c.x, y: c.y, w: c.w, h: c.h,
+          x: b.x, y: b.y, w: b.w, h: b.h,
+          scale: b.scale, width: b.width, height: b.height,   // o que o componente vê, em unidades de desenho
           props,
           sensorProps: type.properties.filter((p) => p.type === 'sensor').map((p) => p.key),
         };
@@ -243,7 +262,7 @@ function refreshThumbs(now = false) {
   thumbTimer = setTimeout(() => {
     const changed = [];
     for (const s of config.screens) {
-      const key = JSON.stringify([s.background, s.components, size, language()]);
+      const key = JSON.stringify([s.background, s.components, s.design, config.scaleMode, size, language()]);
       if (thumbs.get(s.id)?.key !== key) {
         thumbs.set(s.id, { key, url: thumbs.get(s.id)?.url || null });
         changed.push(s.id);
@@ -426,6 +445,7 @@ function applyConfig(next) {
   if (prev.port !== config.port) device.setPortSetting(config.port || 'auto');
   if (prev.startWithWindows !== config.startWithWindows) applyLoginItem();
   if (JSON.stringify(prev.display) !== JSON.stringify(config.display)) applyGeometry();
+  stampDesign();
   player.update(config.screens);
   sendLayout();
   sendStatus();
@@ -528,6 +548,8 @@ ipcMain.handle('screen:import', async () => {
 
 /** Instruções para a IA: a especificação mais o contexto deste PC. */
 function aiInstructions() {
+  // Tamanho do ecrã que se está a editar (o do desenho), senão o do LCD.
+  const aiSize = screenById(player.currentId)?.design || size;
   // Especificação no idioma da app (docs/widget-ai-spec.en.md ou .md em português).
   const spec = fs.readFileSync(path.join(ROOT, 'docs', language() === 'pt' ? 'widget-ai-spec.md' : 'widget-ai-spec.en.md'), 'utf8');
   const byType = new Map();
@@ -546,7 +568,7 @@ function aiInstructions() {
 
 ## 7. ${t('ai.context')}
 
-- ${t('ai.screen', { w: size.width, h: size.height })}
+- ${t('ai.screen', { w: aiSize.width, h: aiSize.height })}
 - ${t('ai.sensorTypes')}
 ${lines.join('\n')}
 
@@ -653,6 +675,7 @@ app.whenReady().then(() => {
   size = { width: vp.width, height: vp.height };
   renderGeom = vp;
   sender.setGeometry(renderGeom, controller);
+  stampDesign();
 
   ensureUserWidgetsDir(userWidgetsDir, BUILTIN_WIDGETS);
   builtinTypes = new Set(Object.keys(scanWidgets([BUILTIN_WIDGETS])));

@@ -30,7 +30,10 @@ function post(entry) {
   entry.iframe.contentWindow.postMessage({
     type: 'widget:update',
     props: resolveProps(widget),
-    size: { width: widget.w, height: widget.h },
+    // O iframe pode ser maior que o desenho (ecrã ampliado, ver src/scaling.js): o
+    // componente vê o tamanho de desenho e a escala, e o SDK amplia o conteúdo.
+    size: { width: widget.width ?? widget.w, height: widget.height ?? widget.h },
+    scale: widget.scale || 1,
     sensorSeq,
     lang,
   }, '*');

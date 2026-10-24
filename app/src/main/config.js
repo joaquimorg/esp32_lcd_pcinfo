@@ -9,7 +9,9 @@ const newId = (prefix) => `${prefix}${(nextId++).toString(36)}`;
 /*
  * Modelo:
  *   config.screens[]       os "widgets" que o utilizador vê: um ecrã completo do LCD
- *     { id, name, enabled, durationSec, background, components[] }
+ *     { id, name, enabled, durationSec, background, design: { width, height }, components[] }
+ *   screen.design          tamanho com que o ecrã foi desenhado: os componentes ficam
+ *                          nestas coordenadas e são ampliados ao LCD ao desenhar
  *   screen.components[]    os blocos que compõem o ecrã (gauge, valor, …)
  *     { id, type, x, y, w, h, props }
  *
@@ -49,6 +51,9 @@ function defaultConfig() {
     // Área visível do painel: null = automático (o tamanho que o ESP32 reporta);
     // { x, y, width, height } quando o painel mostra só parte do controlador.
     display: null,
+    // Ampliação dos ecrãs quando o LCD não tem o tamanho do desenho (src/scaling.js):
+    // 'auto' | 'fit' | 'fill' | 'off'. Fora de "display" para não o tornar manual.
+    scaleMode: 'auto',
     screens: [
       monitor('CPU', 'Ryzen 5', '/amdcpu/0/temperature/2', '/amdcpu/0/load/0', '/amdcpu/0/power/0'),
       monitor('GPU', 'RX 580', '/gpu-amd/0/temperature/0', '/gpu-amd/0/load/0', '/gpu-amd/0/power/3'),

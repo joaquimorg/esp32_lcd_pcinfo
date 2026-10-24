@@ -25,7 +25,10 @@
     const m = e.data;
     if (!m || m.type !== 'widget:update') return;
     last = m;
-    const info = { size: m.size, sensorSeq: m.sensorSeq, lang: m.lang || 'en' };
+    // O ecrã pode estar ampliado (LCD maior que o do desenho): o iframe é maior que
+    // m.size e o conteúdo é ampliado por igual (zoom do CSS: texto e SVG ficam nítidos).
+    document.documentElement.style.zoom = m.scale && m.scale !== 1 ? String(m.scale) : '';
+    const info = { size: m.size, scale: m.scale || 1, sensorSeq: m.sensorSeq, lang: m.lang || 'en' };
     for (const cb of listeners) cb(m.props, info);
   });
 
@@ -55,7 +58,26 @@
   window.Widget = {
     onUpdate(cb) {
       listeners.push(cb);
-      if (last) cb(last.props, { size: last.size, sensorSeq: last.sensorSeq, lang: last.lang || 'en' });
+      if (last) cb(last.props, { size: last.size, scale: last.scale || 1, sensorSeq: last.sensorSeq, lang: last.lang || 'en' });
+    },
+
+    /**
+     * Prepara um <canvas> para desenhar em unidades de desenho (info.size) e
+     * ficar nítido quando o ecrã está ampliado (info.scale): o canvas tem
+     * size x scale pixels e o contexto já vem ampliado, por isso o resto do
+     * código desenha como se a escala fosse 1. Devolve o contexto, limpo.
+     */
+    canvas(canvas, size, scale = 1) {
+      const w = Math.max(1, Math.round(size.width * scale)), h = Math.max(1, Math.round(size.height * scale));
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+      // O documento está ampliado pelo zoom do CSS: o tamanho em CSS é o de desenho.
+      canvas.style.width = size.width + 'px';
+      canvas.style.height = size.height + 'px';
+      const ctx = canvas.getContext('2d');
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      ctx.clearRect(0, 0, size.width, size.height);
+      return ctx;
     },
 
     /** Valor de um sensor com `decimals` casas, ou "--" se não houver leitura. */

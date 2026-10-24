@@ -135,6 +135,19 @@ test('exportar e importar mantêm os componentes bloqueados', () => {
   assert.deepStrictEqual(imported.components[0].props, { text: 'A', font: 'Arial', italic: true });
 });
 
+test('o tamanho de desenho vai e volta no ficheiro e não é o do LCD atual', () => {
+  const catalog = scanWidgets([BUILTIN]);
+  const builtin = new Set(Object.keys(catalog));
+  const screen = { id: 's1', name: 'D', design: { width: 240, height: 320 }, components: [] };
+  const file = JSON.parse(JSON.stringify(exportScreen(screen, { catalog, builtin, size: { width: 410, height: 502 } })));
+  assert.deepStrictEqual(file.screen, { width: 240, height: 320 }, 'exporta o desenho, não o LCD');
+  const { screen: imported } = importScreen(file, { catalog, userWidgetsDir: tmp(), assetsDir: tmp(), newId });
+  assert.deepStrictEqual(imported.design, { width: 240, height: 320 });
+  // Sem tamanho no ficheiro (versões antigas): fica por registar e a app carimba o do LCD.
+  delete file.screen;
+  assert.strictEqual(importScreen(file, { catalog, userWidgetsDir: tmp(), assetsDir: tmp(), newId }).screen.design, undefined);
+});
+
 test('importar rejeita ficheiros que não são widgets', () => {
   const ctx = { catalog: {}, userWidgetsDir: tmp(), assetsDir: tmp(), newId };
   assert.throws(() => importScreen({ hello: 1 }, ctx), (err) => err.key === 'err.notLcdwidget' && /not a widget file/.test(err.message));

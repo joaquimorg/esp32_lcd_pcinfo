@@ -37,6 +37,9 @@ Created by [joaquim.org](https://joaquim.org) · [MIT License](LICENSE)
   the arc) and polygon/star.
 - **Images**: PNG and JPG (with transparency), animated GIF and WebP, SVG and
   BMP, with fit, opacity, rotation, rounded corners and a pixel-art mode.
+- **Zoom to the LCD**: a widget designed for one size is zoomed to fill another
+  LCD (Fit, Fill or Automatic) without distorting text or shapes, so the same
+  widgets work on boards with different resolutions.
 - **Several widgets** that rotate on the LCD, each for its own time, with
   **transitions**: fade, slide and push (4 directions), zoom, wipe, circle or
   random.
@@ -148,7 +151,7 @@ flash the file at address **0x0**, either from the browser with the
 esptool:
 
 ```
-esptool.py --chip esp32s2 --port COMx write_flash 0x0 usb-lcd-firmware-esp32s2-0.10.0.bin
+esptool.py --chip esp32s2 --port COMx write_flash 0x0 usb-lcd-firmware-esp32s2-0.11.0.bin
 ```
 
 Press **RST** when it finishes.
@@ -230,7 +233,8 @@ Settings are stored in `%APPDATA%\usb-lcd-widgets\config.json`.
 - **General**: language and start with Windows.
 - **Sensors**: LibreHardwareMonitor URL and how often sensors are read.
 - **ESP32 connection**: port (automatic by default) and maximum FPS.
-- **LCD screen**: if your panel only shows part of the controller, turn on the
+- **LCD screen**: **Scale widgets to the LCD** sets how widgets designed for
+  another size are zoomed (Automatic by default). If your panel only shows part of the controller, turn on the
   calibration pattern, read the first and last visible line on the rulers, and
   enter the visible area by hand.
 

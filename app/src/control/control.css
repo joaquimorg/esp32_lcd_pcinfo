@@ -213,6 +213,8 @@ input[type=color] {
 .box:hover { border-color: rgba(58, 168, 255, .7); }
 .box.selected { border: 1px solid var(--accent); box-shadow: 0 0 0 1px rgba(58, 168, 255, .35); }
 .box.out { border-color: var(--bad); }
+.design-area { position: absolute; pointer-events: none; border: 1px dashed rgba(255, 255, 255, .22); box-sizing: border-box; }
+.design-size { font-variant-numeric: tabular-nums; }
 .box.locked { cursor: default; border-style: solid; border-color: rgba(255, 255, 255, .10); }
 .box.locked.selected .handle { display: none; }
 .box.locked .tag::before { content: '🔒 '; }

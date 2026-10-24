@@ -13,12 +13,10 @@
 <script>
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
-  function draw(p, w, h) {
+  function draw(p, w, h, scale = 1) {
     const n = Math.max(10, Number(p.points) || 60);
     const history = p.sensor ? p.sensor.history.slice(-n) : [];
-    canvas.width = w;
-    canvas.height = h;
-    ctx.clearRect(0, 0, w, h);
+    Widget.canvas(canvas, { width: w, height: h }, scale);
 
     let min = Number(p.min), max = Number(p.max);
     const vals = history.filter((v) => v != null);
@@ -73,7 +71,7 @@
     ctx.fillText(Widget.format(p.sensor, p.decimals) + (p.sensor ? ' ' + p.sensor.unit : ''), w - 2, 1);
   }
 
-  Widget.onUpdate((p, { size }) => draw(p, size.width, size.height));
+  Widget.onUpdate((p, { size, scale }) => draw(p, size.width, size.height, scale));
 </script>
 </body>
 </html>

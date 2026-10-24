@@ -73,7 +73,20 @@ function showMessage(el, text, kind) {
 }
 
 function newScreen(name) {
-  return { id: newId('s'), name, enabled: false, durationSec: 10, background: '#000000', components: [] };
+  return {
+    id: newId('s'), name, enabled: false, durationSec: 10, background: '#000000',
+    design: { width: size.width, height: size.height }, components: [],
+  };
+}
+
+/** Tamanho com que o ecrã foi desenhado (as coordenadas dos componentes); sem registo, o do LCD. */
+function designOf(screen) {
+  return screen?.design || size;
+}
+
+/** Do desenho para o LCD: ampliação e deslocamento (ver src/scaling.js). */
+function mappingOf(screen) {
+  return Scaling.compute(designOf(screen), size, config?.scaleMode);
 }
 
 function duplicateScreen(screen) {

@@ -84,6 +84,13 @@ function renderDisplaySettings() {
       geo('width', t('display.width'), controller.width), geo('height', t('display.height'), controller.height)),
     field(t('display.calibration'), toggle(displayState.calibrating, (v) => ipc.setCalibration(v)), true),
     h('p', { class: 'desc' }, t('display.help')),
+    field(t('display.scale'), choiceInput(Scaling.normalizeMode(config.scaleMode),
+      Scaling.MODES.map((m) => [m, t('display.scale.' + m)]), (v) => {
+        config.scaleMode = v;
+        commit();
+        renderDisplaySettings();
+      })),
+    h('p', { class: 'desc' }, t('display.scaleHelp.' + Scaling.normalizeMode(config.scaleMode))),
   );
   updateDisplayInfo();
 }

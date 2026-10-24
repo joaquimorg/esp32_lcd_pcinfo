@@ -14,10 +14,8 @@
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
 
-  function draw(p, w, h) {
-    canvas.width = w;
-    canvas.height = h;
-    ctx.clearRect(0, 0, w, h);
+  function draw(p, w, h, scale = 1) {
+    Widget.canvas(canvas, { width: w, height: h }, scale);
 
     const vertical = p.orientation === 'vertical';
     const v = p.sensor ? p.sensor.value : null;
@@ -88,7 +86,7 @@
     }
   }
 
-  Widget.onUpdate((p, { size }) => draw(p, size.width, size.height));
+  Widget.onUpdate((p, { size, scale }) => draw(p, size.width, size.height, scale));
 </script>
 </body>
 </html>

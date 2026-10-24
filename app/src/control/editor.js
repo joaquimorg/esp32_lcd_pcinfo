@@ -9,6 +9,8 @@ let scale = 2;
 let dragging = false;
 
 const editing = () => screenById(editingId);
+const dsize = () => designOf(editing());      // tamanho de desenho: as coordenadas dos componentes
+const map = () => mappingOf(editing());       // desenho -> LCD; o palco mostra o LCD
 const selected = () => editing()?.components.find((c) => c.id === selectedId) || null;
 
 /** Abre o editor num widget; o LCD passa a mostrá-lo enquanto se edita. */
@@ -64,8 +66,25 @@ function renderScreenSettings() {
       $('#editPicker').selectedOptions[0].textContent = v + (s.enabled === false ? t('edit.inactiveSuffix') : '');
     })),
     field(t('edit.background'), colorInput(s.background, (v) => { s.background = v; commit(); }), true),
+    designSizeRow(s),
     field(t('edit.transition'), transitionPicker(s)),
   );
+}
+
+/** Tamanho de desenho do ecrã e, se o LCD for diferente, como o usar sem ampliar. */
+function designSizeRow(s) {
+  const d = designOf(s);
+  const same = d.width === size.width && d.height === size.height;
+  return field(t('edit.designSize'), h('div', { class: 'align-row' },
+    h('span', { class: 'design-size', title: t('edit.designSizeTitle') }, `${d.width} × ${d.height}` + (same ? '' : `  →  ${size.width} × ${size.height}`)),
+    h('button', {
+      class: 'btn small', disabled: same, title: t('edit.designUseLcdTitle'),
+      onclick: () => {
+        s.design = { width: size.width, height: size.height };
+        commit();
+        renderEditor();
+      },
+    }, t('edit.designUseLcd'))));
 }
 
 /** Transição ao entrar neste widget: a geral (Definições) ou uma própria. */
@@ -147,19 +166,29 @@ function fitStage() {
   renderOverlay();
 }
 
+/** Posiciona a caixa no palco: coordenadas de desenho -> LCD (ampliação) -> palco. */
 function placeBox(box, c) {
   if (!box) return;
+  const m = map();
   Object.assign(box.style, {
-    left: c.x * scale + 'px', top: c.y * scale + 'px',
-    width: c.w * scale + 'px', height: c.h * scale + 'px',
+    left: (c.x * m.kx + m.ox) * scale + 'px', top: (c.y * m.ky + m.oy) * scale + 'px',
+    width: c.w * m.kx * scale + 'px', height: c.h * m.ky * scale + 'px',
   });
 }
 
 function renderOverlay() {
   const overlay = $('#overlay');
   overlay.innerHTML = '';
+  const d = dsize(), m = map();
+  if (!m.identity && (m.ox || m.oy)) {
+    // Ampliação "fit": mostra onde fica a área do desenho dentro do LCD.
+    overlay.append(h('div', {
+      class: 'design-area',
+      style: `left:${m.ox * scale}px; top:${m.oy * scale}px; width:${d.width * m.kx * scale}px; height:${d.height * m.ky * scale}px`,
+    }));
+  }
   for (const c of editing()?.components || []) {
-    const out = c.x + c.w > size.width || c.y + c.h > size.height;
+    const out = c.x + c.w > d.width || c.y + c.h > d.height;
     const box = h('div', {
       class: 'box' + (c.id === selectedId ? ' selected' : '') + (out ? ' out' : '') + (c.locked ? ' locked' : ''),
       'data-id': c.id,
@@ -197,21 +226,22 @@ const SNAP_SCREEN_PX = 6;   // distância de encaixe, em pixels do ecrã do PC
 function showGuides(c, guides, note) {
   clearGuides();
   const overlay = $('#overlay');
+  const m = map();
   const ids = new Set();
   for (const g of guides.xs) {
-    overlay.append(h('div', { class: 'guide v' + (g.kind === 'center' ? ' center' : ''), style: `left:${g.v * scale}px` }));
+    overlay.append(h('div', { class: 'guide v' + (g.kind === 'center' ? ' center' : ''), style: `left:${(g.v * m.kx + m.ox) * scale}px` }));
     if (g.id) ids.add(g.id);
   }
   for (const g of guides.ys) {
-    overlay.append(h('div', { class: 'guide h' + (g.kind === 'center' ? ' center' : ''), style: `top:${g.v * scale}px` }));
+    overlay.append(h('div', { class: 'guide h' + (g.kind === 'center' ? ' center' : ''), style: `top:${(g.v * m.ky + m.oy) * scale}px` }));
     if (g.id) ids.add(g.id);
   }
   for (const id of ids) document.querySelector(`.box[data-id="${id}"]`)?.classList.add('snap-target');
 
   const text = `x ${c.x}  y ${c.y}  ·  ${c.w} × ${c.h}` + (note ? `  ·  ${note}` : '');
-  const below = (c.y + c.h) * scale + 6;
-  const top = below + 22 > size.height * scale ? c.y * scale - 26 : below;
-  overlay.append(h('div', { class: 'dim-badge', style: `left:${c.x * scale}px; top:${top}px` }, text));
+  const below = ((c.y + c.h) * m.ky + m.oy) * scale + 6;
+  const top = below + 22 > size.height * scale ? (c.y * m.ky + m.oy) * scale - 26 : below;
+  overlay.append(h('div', { class: 'dim-badge', style: `left:${(c.x * m.kx + m.ox) * scale}px; top:${top}px` }, text));
 }
 
 function clearGuides() {
@@ -231,24 +261,26 @@ $('#overlay').addEventListener('pointerdown', (e) => {
   const mode = e.target.classList.contains('handle') ? 'resize' : 'move';
   const start = { x: e.clientX, y: e.clientY, cx: c.x, cy: c.y, cw: c.w, ch: c.h };
   const others = editing().components.filter((o) => o.id !== c.id);
-  const targets = snapTargets(others, c.id, size);
+  const d = dsize(), m = map();
+  const targets = snapTargets(others, c.id, d);
   dragging = true;
   box.setPointerCapture(e.pointerId);
 
   const onMove = (ev) => {
-    const dx = Math.round((ev.clientX - start.x) / scale);
-    const dy = Math.round((ev.clientY - start.y) / scale);
+    // Pixels do ecrã do PC -> unidades de desenho (palco e ampliação).
+    const dx = Math.round((ev.clientX - start.x) / (scale * m.kx));
+    const dy = Math.round((ev.clientY - start.y) / (scale * m.ky));
     // Alt desliga o encaixe (posicionamento livre).
-    const threshold = ev.altKey ? 0 : SNAP_SCREEN_PX / scale;
+    const threshold = ev.altKey ? 0 : SNAP_SCREEN_PX / (scale * Math.min(m.kx, m.ky));
     let note = '';
     let guides;
     if (mode === 'move') {
-      const r = snapMove({ x: start.cx + dx, y: start.cy + dy, w: c.w, h: c.h }, targets, size, threshold);
+      const r = snapMove({ x: start.cx + dx, y: start.cy + dy, w: c.w, h: c.h }, targets, d, threshold);
       c.x = r.x;
       c.y = r.y;
       guides = r.guides;
     } else {
-      const r = snapResize({ x: c.x, y: c.y, w: start.cw + dx, h: start.ch + dy }, targets, others, size, threshold);
+      const r = snapResize({ x: c.x, y: c.y, w: start.cw + dx, h: start.ch + dy }, targets, others, d, threshold);
       c.w = r.w;
       c.h = r.h;
       guides = r.guides;
@@ -280,8 +312,9 @@ document.addEventListener('keydown', (e) => {
   const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
   if (moves[e.key]) {
     e.preventDefault();
-    c.x = clamp(c.x + moves[e.key][0], 0, size.width - c.w);
-    c.y = clamp(c.y + moves[e.key][1], 0, size.height - c.h);
+    const d = dsize();
+    c.x = clamp(c.x + moves[e.key][0], 0, d.width - c.w);
+    c.y = clamp(c.y + moves[e.key][1], 0, d.height - c.h);
     placeBox(document.querySelector(`.box[data-id="${c.id}"]`), c);
     updateGeometryFields(c);
     commit();
@@ -339,11 +372,11 @@ function renderInspector() {
   box.append(field(t('edit.lock'), toggle(c.locked, (v) => setLocked(c, v)), true));
   if (c.locked) box.append(h('p', { class: 'desc' }, t('edit.lockedHint')));
   box.append(h('div', { class: 'grid4' },
-    geo('x', 'X', size.width), geo('y', 'Y', size.height), geo('w', t('edit.width'), size.width), geo('h', t('edit.height'), size.height)));
+    geo('x', 'X', dsize().width), geo('y', 'Y', dsize().height), geo('w', t('edit.width'), dsize().width), geo('h', t('edit.height'), dsize().height)));
 
   const center = (axis) => () => {
-    if (axis === 'x') c.x = Math.round((size.width - c.w) / 2);
-    else c.y = Math.round((size.height - c.h) / 2);
+    if (axis === 'x') c.x = Math.round((dsize().width - c.w) / 2);
+    else c.y = Math.round((dsize().height - c.h) / 2);
     placeBox(document.querySelector(`.box[data-id="${c.id}"]`), c);
     updateGeometryFields(c);
     commit();
@@ -393,7 +426,7 @@ function renderInspector() {
     h('button', {
       class: 'btn small',
       onclick: () => {
-        const copy = { ...structuredClone(c), id: newId('c'), x: clamp(c.x + 10, 0, size.width - c.w), y: clamp(c.y + 10, 0, size.height - c.h) };
+        const copy = { ...structuredClone(c), id: newId('c'), x: clamp(c.x + 10, 0, dsize().width - c.w), y: clamp(c.y + 10, 0, dsize().height - c.h) };
         delete copy.locked;   // a cópia fica solta, para a poder pôr no sítio
         list.push(copy);
         commit();
@@ -414,11 +447,12 @@ function renderInspector() {
 function addComponent(t, props = {}, w = t.size.w, hh = t.size.h) {
   const s = editing();
   if (!s) return null;
-  w = Math.min(w, size.width);
-  hh = Math.min(hh, size.height);
+  const d = dsize();
+  w = Math.min(w, d.width);
+  hh = Math.min(hh, d.height);
   const c = {
     id: newId('c'), type: t.type,
-    x: Math.round((size.width - w) / 2), y: Math.round((size.height - hh) / 2), w, h: hh,
+    x: Math.round((d.width - w) / 2), y: Math.round((d.height - hh) / 2), w, h: hh,
     props,
   };
   s.components.push(c);
@@ -432,7 +466,8 @@ function addComponent(t, props = {}, w = t.size.w, hh = t.size.h) {
 async function imageFit(file) {
   const img = await ipc.imageSize(file);
   if (!img || !img.width || !img.height) return null;
-  const k = Math.min(1, size.width / img.width, size.height / img.height);
+  const d = dsize();
+  const k = Math.min(1, d.width / img.width, d.height / img.height);
   return { w: Math.max(8, Math.round(img.width * k)), h: Math.max(8, Math.round(img.height * k)) };
 }
 
@@ -441,8 +476,8 @@ async function fitToImage(c, file) {
   if (!fit) return;
   c.w = fit.w;
   c.h = fit.h;
-  c.x = clamp(c.x, 0, size.width - c.w);
-  c.y = clamp(c.y, 0, size.height - c.h);
+  c.x = clamp(c.x, 0, dsize().width - c.w);
+  c.y = clamp(c.y, 0, dsize().height - c.h);
   placeBox(document.querySelector(`.box[data-id="${c.id}"]`), c);
   updateGeometryFields(c);
   commit();

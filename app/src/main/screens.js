@@ -68,7 +68,7 @@ function exportScreen(screen, { catalog, builtin, size }) {
     format: FORMAT,
     version: VERSION,
     name: screen.name,
-    screen: { width: size.width, height: size.height },
+    screen: screen.design ? { width: screen.design.width, height: screen.design.height } : { width: size.width, height: size.height },
     background: screen.background || '#000000',
     ...(screen.transition ? { transition: { type: screen.transition.type } } : {}),
     components,
@@ -139,6 +139,8 @@ function importScreen(data, { catalog, userWidgetsDir, assetsDir, newId }) {
       enabled: true,
       durationSec: 10,
       background: data.background || '#000000',
+      ...(data.screen && num(data.screen.width) > 0 && num(data.screen.height) > 0
+        ? { design: { width: num(data.screen.width), height: num(data.screen.height) } } : {}),
       ...(typeof data.transition?.type === 'string' ? { transition: { type: data.transition.type } } : {}),
       components,
     },
