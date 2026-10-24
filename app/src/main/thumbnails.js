@@ -2,7 +2,9 @@
 
 const { BrowserWindow } = require('electron');
 
-const SETTLE_MS = 1500;   // tempo para os componentes carregarem e animarem
+const MIN_SETTLE_MS = 700;     // tempo mínimo para os componentes desenharem
+const MAX_WAIT_MS = 12000;     // espera máxima por imagens a carregar (GIFs grandes)
+const PAINT_MS = 400;          // depois de tudo carregado, tempo para o último desenho
 
 /**
  * Miniaturas dos widgets para a biblioteca: cada ecrã é desenhado numa janela
@@ -46,13 +48,31 @@ class Thumbnailer {
         this.lastImage = null;
         this.win.webContents.send('sensors', this.opts.sensors());
         this.win.webContents.send('layout', layout);
-        await new Promise((r) => setTimeout(r, SETTLE_MS));
+        await this.settle();
         if (this.win.isDestroyed()) return;
         if (this.lastImage) this.opts.onThumb(id, this.lastImage.toDataURL());
       }
     } finally {
       this.busy = false;
     }
+  }
+
+  /** Espera que os componentes (e as imagens deles) carreguem e desenhem. */
+  async settle() {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const until = Date.now() + MAX_WAIT_MS;
+    await sleep(MIN_SETTLE_MS);
+    while (Date.now() < until && !this.win.isDestroyed()) {
+      let pending = 0;
+      try {
+        pending = await this.win.webContents.executeJavaScript('window.__pendingLoads ? window.__pendingLoads() : 0');
+      } catch {
+        break;
+      }
+      if (!pending) break;
+      await sleep(150);
+    }
+    await sleep(PAINT_MS);
   }
 
   async ensureWindow() {

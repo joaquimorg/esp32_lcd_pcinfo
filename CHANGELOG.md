@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.1
+
+**Fixes**
+- The thumbnail of a widget kept the old image after its GIF/image file was
+  replaced by another with the same name: nothing in the configuration changed,
+  so it was never redone, and Chromium reused the cached image. The thumbnail
+  now also depends on the files' modification dates, and the LCD and thumbnail
+  windows load images with `?v=<date>` so they are never served from cache.
+- Thumbnails wait until the images of a widget have finished loading (up to
+  12 s) instead of a fixed 1.5 s, so big GIFs are not photographed half-loaded.
+
 ## 0.12.0
 
 **Faster and smoother animations (GIFs)**

@@ -15,6 +15,17 @@ let lang = I18N.DEFAULT_LANGUAGE;   // idioma da app (vem em cada layout)
 let transition = null;      // troca de ecrã em curso: { old, page, anims }
 const LOAD_TIMEOUT_MS = 1500;   // espera máxima pelos componentes do ecrã novo
 
+// Componentes que ainda estão a carregar uma imagem (ver widgets/image): as miniaturas
+// esperam que não haja nenhum antes de tirar a fotografia.
+window.addEventListener('message', (e) => {
+  const type = e.data && e.data.type;
+  if (type !== 'widget:loading' && type !== 'widget:loaded') return;
+  for (const entry of frames.values()) {
+    if (entry.iframe.contentWindow === e.source) entry.loading = type === 'widget:loading';
+  }
+});
+window.__pendingLoads = () => [...frames.values()].filter((e) => !e.loaded || e.loading).length;
+
 function resolveProps(widget) {
   const props = { ...widget.props };
   for (const key of widget.sensorProps) {

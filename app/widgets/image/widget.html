@@ -19,6 +19,9 @@
 <script src="../_sdk/widget-sdk.js"></script>
 <script>
   const el = (id) => document.getElementById(id);
+  // Avisa a página que compõe o ecrã quando começa e acaba de carregar uma imagem (as
+  // miniaturas esperam por isso em vez de um tempo fixo).
+  const notify = (type) => parent.postMessage({ type }, '*');
   const img = el('img');
   const still = el('still');
   let animate = true;
@@ -32,10 +35,15 @@
     still.getContext('2d').drawImage(img, 0, 0);
   }
   img.addEventListener('load', drawStill);
+  img.addEventListener('load', () => notify('widget:loaded'));
+  img.addEventListener('error', () => notify('widget:loaded'));
 
   Widget.onUpdate((p, info) => {
     el('empty').textContent = info.lang === 'pt' ? 'sem imagem' : 'no image';
-    if (p.file && img.getAttribute('src') !== p.file) img.src = p.file;
+    if (p.file && img.getAttribute('src') !== p.file) {
+      notify('widget:loading');
+      img.src = p.file;
+    }
     if (p.animate === false && animate) drawStill();
     animate = p.animate !== false;
 

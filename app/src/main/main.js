@@ -229,7 +229,9 @@ function buildLayout(screen, animate = false) {
         const b = Scaling.box(c, mapping);
         const props = withDefaults(type, c.props);
         for (const p of type.properties) {
-          if (p.type === 'file' && props[p.key]) props[p.key] = pathToFileURL(props[p.key]).href;
+          // ?v=<data de modificação>: se o ficheiro for substituído por outro com o mesmo nome,
+          // o Chromium não volta a usar a imagem em cache.
+          if (p.type === 'file' && props[p.key]) props[p.key] = `${pathToFileURL(props[p.key]).href}?v=${fileStamp(props[p.key])}`;
         }
         return {
           id: c.id,
@@ -241,6 +243,27 @@ function buildLayout(screen, animate = false) {
         };
       }),
   };
+}
+
+/** Data de modificação de um ficheiro (0 se não existir). */
+function fileStamp(file) {
+  try {
+    return Math.round(fs.statSync(file).mtimeMs);
+  } catch {
+    return 0;
+  }
+}
+
+/** Datas dos ficheiros (imagens) que um ecrã usa: a miniatura refaz-se se forem substituídos. */
+function screenFileStamps(screen) {
+  const out = [];
+  for (const c of screen.components) {
+    const type = catalog[c.type];
+    for (const p of type ? type.properties : []) {
+      if (p.type === 'file' && c.props[p.key]) out.push(fileStamp(c.props[p.key]));
+    }
+  }
+  return out;
 }
 
 function sendLayout() {
@@ -270,7 +293,7 @@ function refreshThumbs(now = false) {
   thumbTimer = setTimeout(() => {
     const changed = [];
     for (const s of config.screens) {
-      const key = JSON.stringify([s.background, s.components, s.design, config.scaleMode, size, language()]);
+      const key = JSON.stringify([s.background, s.components, s.design, config.scaleMode, size, language(), screenFileStamps(s)]);
       if (thumbs.get(s.id)?.key !== key) {
         thumbs.set(s.id, { key, url: thumbs.get(s.id)?.url || null });
         changed.push(s.id);

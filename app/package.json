@@ -1,7 +1,7 @@
 {
   "name": "usb-lcd-widgets",
   "productName": "USB LCD Widgets",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "HTML widgets with live PC sensor data on a USB LCD (ESP32-S2)",
   "author": "joaquim.org (https://joaquim.org)",
   "homepage": "https://joaquim.org",
