@@ -68,6 +68,20 @@ test('ida e volta: sem folgas entre caixas vizinhas (arredonda as arestas, não 
   assert.strictEqual(a.x + a.w, b.x);
 });
 
+test('ecrãs antigos sem tamanho de desenho: o LCD, ou o original se o LCD é maior', () => {
+  const AMOLED_ = { width: 410, height: 502 };
+  const small = [{ x: 10, y: 6, w: 220, h: 271 }];
+  // LCD até ao tamanho original: foi para ele que desenhou (nada muda).
+  assert.deepStrictEqual(S.guessDesign(small, { width: 240, height: 280 }), { width: 240, height: 280 });
+  assert.deepStrictEqual(S.guessDesign(small, D), D);
+  // LCD maior que o original e componentes que cabem no original: vêm de 240x320 (o bug da placa AMOLED).
+  assert.deepStrictEqual(S.guessDesign(small, AMOLED_), D);
+  // Componentes que já não cabem no original mas cabem no LCD: desenhou no LCD grande.
+  assert.deepStrictEqual(S.guessDesign([{ x: 0, y: 0, w: 400, h: 480 }], AMOLED_), AMOLED_);
+  // Ecrã vazio: nada a ampliar.
+  assert.deepStrictEqual(S.guessDesign([], AMOLED_), AMOLED_);
+});
+
 test('modo desconhecido cai para auto; dados em falta dão identidade', () => {
   assert.strictEqual(S.normalizeMode('xx'), 'auto');
   assert.strictEqual(S.compute(null, AMOLED, 'fit').identity, true);

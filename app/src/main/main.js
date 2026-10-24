@@ -165,14 +165,13 @@ function applyGeometry() {
 }
 
 /**
- * Ecrãs sem tamanho de desenho (criados antes da ampliação) ficam com o do LCD
- * que têm agora: foi com esse que foram desenhados.
+ * Ecrãs sem tamanho de desenho (criados antes da ampliação): ver Scaling.guessDesign.
  */
 function stampDesign() {
   let changed = false;
   for (const s of config.screens) {
     if (!s.design) {
-      s.design = { width: size.width, height: size.height };
+      s.design = Scaling.guessDesign(s.components, size);
       changed = true;
     }
   }

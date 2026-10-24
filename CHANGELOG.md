@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.1
+
+**Fixes**
+- The zoom did nothing on widgets made before it existed when the app had
+  already run with a bigger LCD: they were stamped with the big LCD size as
+  their design size. Old widgets now get the original 240×320 when they fit in
+  it (and the LCD is bigger), otherwise the LCD size they were using.
+- The design size is now editable in the editor (width × height), not only
+  "Use the LCD size".
+
 ## 0.11.0
 
 **Zoom to the LCD size**

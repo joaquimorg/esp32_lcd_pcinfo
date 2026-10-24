@@ -67,7 +67,29 @@
     return { x, y, w, h, scale: m.k, width: w / m.k, height: h / m.k };
   }
 
-  const api = { MODES, DEFAULT_MODE, normalizeMode, compute, box };
+  // Antes da ampliação a app só suportava LCDs até este tamanho (o do primeiro hardware).
+  const ORIGINAL = { width: 240, height: 320 };
+
+  /**
+   * Tamanho de desenho de um ecrã antigo, sem registo. Quem desenhou num LCD até
+   * ao tamanho original, desenhou para o LCD que tem: fica esse (nada muda). Num
+   * LCD maior que isso, os ecrãs antigos vêm do tamanho original, a menos que os
+   * componentes já não caibam nele.
+   */
+  function guessDesign(components, display) {
+    const d = { width: display.width, height: display.height };
+    if (!components.length) return d;
+    if (d.width <= ORIGINAL.width && d.height <= ORIGINAL.height) return d;
+    let w = 0, h = 0;
+    for (const c of components) {
+      w = Math.max(w, c.x + c.w);
+      h = Math.max(h, c.y + c.h);
+    }
+    if (w <= ORIGINAL.width && h <= ORIGINAL.height) return { ...ORIGINAL };
+    return w <= d.width && h <= d.height ? d : { width: Math.max(w, ORIGINAL.width), height: Math.max(h, ORIGINAL.height) };
+  }
+
+  const api = { MODES, DEFAULT_MODE, ORIGINAL, normalizeMode, compute, box, guessDesign };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Scaling = api;
 })(typeof window !== 'undefined' ? window : globalThis);

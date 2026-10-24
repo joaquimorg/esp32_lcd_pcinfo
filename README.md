@@ -151,7 +151,7 @@ flash the file at address **0x0**, either from the browser with the
 esptool:
 
 ```
-esptool.py --chip esp32s2 --port COMx write_flash 0x0 usb-lcd-firmware-esp32s2-0.11.0.bin
+esptool.py --chip esp32s2 --port COMx write_flash 0x0 usb-lcd-firmware-esp32s2-0.11.1.bin
 ```
 
 Press **RST** when it finishes.

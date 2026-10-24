@@ -71,12 +71,23 @@ function renderScreenSettings() {
   );
 }
 
-/** Tamanho de desenho do ecrã e, se o LCD for diferente, como o usar sem ampliar. */
+/** Tamanho de desenho do ecrã (editável) e, se o LCD for diferente, como o usar sem ampliar. */
 function designSizeRow(s) {
   const d = designOf(s);
   const same = d.width === size.width && d.height === size.height;
-  return field(t('edit.designSize'), h('div', { class: 'align-row' },
-    h('span', { class: 'design-size', title: t('edit.designSizeTitle') }, `${d.width} × ${d.height}` + (same ? '' : `  →  ${size.width} × ${size.height}`)),
+  const dim = (key) => h('input', {
+    type: 'number', min: 16, max: 4000, step: 1, value: d[key], title: t('edit.designSizeTitle'),
+    // onchange (e não oninput): só aplica ao confirmar, para não perder o foco a escrever.
+    onchange: (e) => {
+      const v = Math.round(e.target.valueAsNumber);
+      if (!Number.isFinite(v) || v < 16) { e.target.value = d[key]; return; }
+      s.design = { ...designOf(s), [key]: v };
+      commit();
+      renderEditor();
+    },
+  });
+  return field(t('edit.designSize'), h('div', { class: 'align-row design-row' },
+    dim('width'), h('span', {}, '×'), dim('height'),
     h('button', {
       class: 'btn small', disabled: same, title: t('edit.designUseLcdTitle'),
       onclick: () => {
