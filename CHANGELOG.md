@@ -1,6 +1,42 @@
 # Changelog
 
-## Unreleased
+## 0.10.0
+
+**New components**
+- **Ring**: full-circle progress with the value in the centre (start angle,
+  direction, rounded ends, colour that follows the value).
+- **Level**: segmented or plain bar, horizontal or vertical: VU meter, tank,
+  thermometer.
+- **Trend card**: large value, trend arrow and a small history graph.
+- **Sensor list**: up to 6 rows of caption and value, with optional separators.
+- **Indicator**: lamp that turns green, amber or red from warning and critical
+  limits (or the reverse, for a battery).
+- **Sensor text**: free text with `{name}` `{value}` `{unit}` `{min}` `{max}`,
+  font choices and a colour change above a limit.
+- **Date**: calendar page or plain date.
+
+## 0.9.0
+
+**Editor**
+- **Lock components**: a padlock in the component list (and a switch in the
+  properties) stops a component from being moved or resized, by mouse, arrow
+  keys or the X/Y/size fields. The Delete key is also ignored while locked. The
+  lock is saved in the widget and in `.lcdwidget` files.
+- **Text** component: choice of font (12 common Windows fonts), bold (700 added
+  to the weights), italic and underline.
+- **Clock** component: same font choices (font, weight, italic), 12/24-hour
+  format, blinking colon, and four styles for the seconds: same as the time,
+  small, dimmed colour or a progress bar, with its own colour.
+
+## 0.8.0
+
+**Faster refresh**
+- Changed areas are found with 16×16 tiles instead of full-width 16-line
+  bands, and trimmed to the exact changed pixels.
+- New LZ4 rectangles (`PKT_RECT_LZ4`): about 2.4× smaller than RLE on real LCD
+  frames. The firmware announces support in the HELLO flags; the app falls back
+  to RLE/raw with older firmware, so **flash the new firmware** to get it.
+- `LCD_DEBUG=1` now shows bytes per format, rectangles and wasted pixels.
 
 **More boards and displays**
 - Firmware builds per board in `platformio.ini`: `lolin_s2_mini` (unchanged),

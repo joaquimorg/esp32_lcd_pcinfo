@@ -307,7 +307,13 @@ setInterval(() => {
   const c = sender.takeCounters();
   rateCounters = { fps: c.frames, kbps: c.bytes / 1024 };
   // LCD_DEBUG=1: débito no terminal, para diagnosticar a ligação.
-  if (process.env.LCD_DEBUG) console.log(`[rate] ${c.frames} fps, ${Math.round(c.bytes / 1024)} KB/s`);
+  if (process.env.LCD_DEBUG) {
+    const kb = (n) => Math.round(n / 1024);
+    // Por formato (KB), retângulos e pixels enviados / pixels que mudaram de facto.
+    console.log(`[rate] ${c.frames} fps, ${kb(c.bytes)} KB/s`
+      + ` (raw ${kb(c.byType.raw)}, rle ${kb(c.byType.rle)}, lz4 ${kb(c.byType.lz4)}, fill ${kb(c.byType.fill)})`
+      + `, ${c.rects} rects, ${c.sentPx}/${c.changedPx} px enviados/alterados`);
+  }
   sendStatus();
 }, 1000);
 

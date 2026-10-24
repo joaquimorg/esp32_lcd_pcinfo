@@ -1,0 +1,201 @@
+{
+  "name": "Indicator",
+  "description": "Lamp that turns green, amber or red according to a sensor value.",
+  "size": {
+    "w": 120,
+    "h": 40
+  },
+  "properties": [
+    {
+      "key": "sensor",
+      "type": "sensor",
+      "label": "Sensor"
+    },
+    {
+      "key": "label",
+      "type": "text",
+      "label": "Caption",
+      "default": ""
+    },
+    {
+      "key": "decimals",
+      "type": "number",
+      "label": "Decimal places",
+      "default": 0,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "key": "font",
+      "type": "select",
+      "label": "Font",
+      "default": "Segoe UI",
+      "options": [
+        "Segoe UI",
+        "Arial",
+        "Calibri",
+        "Verdana",
+        "Tahoma",
+        "Trebuchet MS",
+        "Consolas",
+        "Courier New",
+        "Times New Roman",
+        "Georgia",
+        "Impact",
+        "Comic Sans MS"
+      ]
+    },
+    {
+      "key": "warn",
+      "type": "number",
+      "label": "Warning from",
+      "default": 70
+    },
+    {
+      "key": "crit",
+      "type": "number",
+      "label": "Critical from",
+      "default": 90
+    },
+    {
+      "key": "invert",
+      "type": "boolean",
+      "label": "Lower is worse (e.g. battery)",
+      "default": false
+    },
+    {
+      "key": "shape",
+      "type": "select",
+      "label": "Shape",
+      "default": "circle",
+      "options": [
+        "circle",
+        "rounded",
+        "square"
+      ],
+      "optionLabels": {
+        "circle": "circle",
+        "rounded": "rounded square",
+        "square": "square"
+      }
+    },
+    {
+      "key": "glow",
+      "type": "boolean",
+      "label": "Glow",
+      "default": true
+    },
+    {
+      "key": "showLabel",
+      "type": "boolean",
+      "label": "Show caption",
+      "default": true
+    },
+    {
+      "key": "showValue",
+      "type": "boolean",
+      "label": "Show value",
+      "default": true
+    },
+    {
+      "key": "okColor",
+      "type": "color",
+      "label": "Normal colour",
+      "default": "#3ddc84"
+    },
+    {
+      "key": "warnColor",
+      "type": "color",
+      "label": "Warning colour",
+      "default": "#ffb020"
+    },
+    {
+      "key": "critColor",
+      "type": "color",
+      "label": "Critical colour",
+      "default": "#ff5252"
+    },
+    {
+      "key": "offColor",
+      "type": "color",
+      "label": "No data colour",
+      "default": "#3a3f47"
+    },
+    {
+      "key": "labelColor",
+      "type": "color",
+      "label": "Caption colour",
+      "default": "#9aa0a6"
+    },
+    {
+      "key": "textColor",
+      "type": "color",
+      "label": "Value colour",
+      "default": "#ffffff"
+    }
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Indicador",
+      "description": "Lâmpada que fica verde, âmbar ou vermelha conforme o valor do sensor.",
+      "properties": {
+        "sensor": {
+          "label": "Sensor"
+        },
+        "label": {
+          "label": "Legenda"
+        },
+        "decimals": {
+          "label": "Casas decimais"
+        },
+        "font": {
+          "label": "Tipo de letra"
+        },
+        "warn": {
+          "label": "Aviso a partir de"
+        },
+        "crit": {
+          "label": "Crítico a partir de"
+        },
+        "invert": {
+          "label": "Menor é pior (ex: bateria)"
+        },
+        "shape": {
+          "label": "Forma",
+          "optionLabels": {
+            "circle": "círculo",
+            "rounded": "quadrado redondo",
+            "square": "quadrado"
+          }
+        },
+        "glow": {
+          "label": "Brilho"
+        },
+        "showLabel": {
+          "label": "Mostrar legenda"
+        },
+        "showValue": {
+          "label": "Mostrar valor"
+        },
+        "okColor": {
+          "label": "Cor normal"
+        },
+        "warnColor": {
+          "label": "Cor de aviso"
+        },
+        "critColor": {
+          "label": "Cor crítica"
+        },
+        "offColor": {
+          "label": "Cor sem dados"
+        },
+        "labelColor": {
+          "label": "Cor da legenda"
+        },
+        "textColor": {
+          "label": "Cor do valor"
+        }
+      }
+    }
+  }
+}

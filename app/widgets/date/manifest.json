@@ -1,0 +1,136 @@
+{
+  "name": "Date",
+  "description": "Calendar page or plain date with day, month and weekday.",
+  "size": {
+    "w": 100,
+    "h": 110
+  },
+  "properties": [
+    {
+      "key": "font",
+      "type": "select",
+      "label": "Font",
+      "default": "Segoe UI",
+      "options": [
+        "Segoe UI",
+        "Arial",
+        "Calibri",
+        "Verdana",
+        "Tahoma",
+        "Trebuchet MS",
+        "Consolas",
+        "Courier New",
+        "Times New Roman",
+        "Georgia",
+        "Impact",
+        "Comic Sans MS"
+      ]
+    },
+    {
+      "key": "layout",
+      "type": "select",
+      "label": "Style",
+      "default": "page",
+      "options": [
+        "page",
+        "plain"
+      ],
+      "optionLabels": {
+        "page": "calendar page",
+        "plain": "plain"
+      }
+    },
+    {
+      "key": "showWeekday",
+      "type": "boolean",
+      "label": "Show weekday",
+      "default": true
+    },
+    {
+      "key": "showYear",
+      "type": "boolean",
+      "label": "Show year",
+      "default": false
+    },
+    {
+      "key": "radius",
+      "type": "number",
+      "label": "Corner radius",
+      "default": 10,
+      "min": 0,
+      "max": 60
+    },
+    {
+      "key": "panelColor",
+      "type": "color",
+      "label": "Page colour",
+      "default": "#1e2127"
+    },
+    {
+      "key": "accent",
+      "type": "color",
+      "label": "Band colour",
+      "default": "#ff5252"
+    },
+    {
+      "key": "bandTextColor",
+      "type": "color",
+      "label": "Band text colour",
+      "default": "#ffffff"
+    },
+    {
+      "key": "color",
+      "type": "color",
+      "label": "Day colour",
+      "default": "#ffffff"
+    },
+    {
+      "key": "subColor",
+      "type": "color",
+      "label": "Weekday colour",
+      "default": "#9aa0a6"
+    }
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Data",
+      "description": "Folha de calendário ou data simples com dia, mês e dia da semana.",
+      "properties": {
+        "font": {
+          "label": "Tipo de letra"
+        },
+        "layout": {
+          "label": "Estilo",
+          "optionLabels": {
+            "page": "folha de calendário",
+            "plain": "simples"
+          }
+        },
+        "showWeekday": {
+          "label": "Mostrar dia da semana"
+        },
+        "showYear": {
+          "label": "Mostrar ano"
+        },
+        "radius": {
+          "label": "Raio dos cantos"
+        },
+        "panelColor": {
+          "label": "Cor da folha"
+        },
+        "accent": {
+          "label": "Cor da faixa"
+        },
+        "bandTextColor": {
+          "label": "Cor do texto da faixa"
+        },
+        "color": {
+          "label": "Cor do dia"
+        },
+        "subColor": {
+          "label": "Cor do dia da semana"
+        }
+      }
+    }
+  }
+}

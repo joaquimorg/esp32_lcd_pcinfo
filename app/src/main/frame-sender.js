@@ -13,6 +13,12 @@ const KEEPALIVE_MS = 1000;
 // por encravar (dados perdidos, ESP32 a reiniciar), por exemplo com GIFs.
 const BATCH_BYTES = 16 * 1024;
 
+const TYPE_NAMES = { [P.PKT.RECT_RAW]: 'raw', [P.PKT.RECT_RLE]: 'rle', [P.PKT.RECT_LZ4]: 'lz4', [P.PKT.FILL]: 'fill' };
+
+function newCounters() {
+  return { frames: 0, bytes: 0, rects: 0, changedPx: 0, sentPx: 0, byType: { raw: 0, rle: 0, lz4: 0, fill: 0 } };
+}
+
 /** Agrupa pacotes em lotes de até maxBytes (um pacote maior fica sozinho). */
 function batchPackets(packets, maxBytes = BATCH_BYTES) {
   const batches = [];
@@ -51,7 +57,7 @@ class FrameSender {
     this.batches = [];      // lotes do frame em envio que ainda faltam
     this.lastSent = null;   // o que está no LCD
     this.needsClear = true; // pintar o controlador de preto antes do próximo frame completo
-    this.counters = { frames: 0, bytes: 0 };
+    this.counters = newCounters();
     this.screenEpoch = null;
     this.lastSendAt = 0;
 
@@ -117,7 +123,8 @@ class FrameSender {
       const frame = this.pending;
       this.pending = null;
       const { x, y, width, height } = this.geom;
-      const packets = P.encodeFrame(this.lastSent, frame, width, height, x, y);
+      const packets = P.encodeFrame(this.lastSent, frame, width, height, x, y, { lz4: !!this.device.info?.lz4 });
+      this.count(packets);
       if (this.needsClear && !this.lastSent) {
         // Limpa o que ficou fora da área (ecrã de espera, área antiga maior).
         const c = this.controller.width ? this.controller : { width: x + width, height: y + height };
@@ -138,10 +145,24 @@ class FrameSender {
     }
   }
 
+  /** Contadores de diagnóstico (LCD_DEBUG): bytes por formato e quanto do que se enviou mudou mesmo. */
+  count(packets) {
+    const c = this.counters, st = packets.stats;
+    if (st) {
+      c.rects += st.rects;
+      c.changedPx += st.changedPx;
+      c.sentPx += st.sentPx;
+    }
+    for (const p of packets) {
+      const name = TYPE_NAMES[p[2]];
+      if (name) c.byType[name] += p.length;
+    }
+  }
+
   /** Devolve e reinicia os contadores (para fps e KB/s). */
   takeCounters() {
     const c = this.counters;
-    this.counters = { frames: 0, bytes: 0 };
+    this.counters = newCounters();
     return c;
   }
 }

@@ -7,7 +7,7 @@ const MAGIC0 = 0xA5;
 const MAGIC1 = 0x5A;
 const HEADER_SIZE = 16;
 
-const PKT = { HELLO: 0x01, RECT_RAW: 0x02, RECT_RLE: 0x03, FILL: 0x04, SYNC: 0x05, SINK: 0x06, VIEWPORT: 0x07, LANG: 0x08 };
+const PKT = { HELLO: 0x01, RECT_RAW: 0x02, RECT_RLE: 0x03, FILL: 0x04, SYNC: 0x05, SINK: 0x06, VIEWPORT: 0x07, LANG: 0x08, RECT_LZ4: 0x09 };
 const RSP = { HELLO: 0x81, ACK: 0x85, ERROR: 0x8E };
 const ERROR_NAMES = { 1: 'BAD_TYPE', 2: 'BAD_RECT', 3: 'BAD_LEN', 4: 'RLE_DECODE', 5: 'RX_TIMEOUT' };
 
@@ -109,6 +109,102 @@ function rleEncode(px) {
   return out.subarray(0, o);
 }
 
+/**
+ * LZ4 (formato de bloco) greedy, sem dependências. Cumpre as regras do formato:
+ * os últimos 5 bytes são literais e nenhuma sequência começa nos últimos 12.
+ * O firmware (lz4Decode em main.cpp) descomprime-o.
+ */
+const LZ4_HASH_BITS = 14;
+const LZ4_CHAIN_DEPTH = 24;   // candidatos testados por posição: mais = melhor compressão, mais CPU
+const lz4Head = new Int32Array(1 << LZ4_HASH_BITS);
+const lz4Stamp = new Uint32Array(1 << LZ4_HASH_BITS);
+let lz4Epoch = 0;
+
+function lz4Compress(src) {
+  const n = src.length;
+  const out = Buffer.allocUnsafe(n + Math.floor(n / 255) + 16);
+  let o = 0, anchor = 0, i = 0;
+  lz4Epoch = (lz4Epoch + 1) >>> 0 || 1;
+
+  const emitLength = (len) => {
+    while (len >= 255) { out[o++] = 255; len -= 255; }
+    out[o++] = len;
+  };
+  const emit = (litEnd, offset, matchLen) => {
+    const lit = litEnd - anchor;
+    out[o++] = (Math.min(lit, 15) << 4) | (matchLen ? Math.min(matchLen - 4, 15) : 0);
+    if (lit >= 15) emitLength(lit - 15);
+    src.copy(out, o, anchor, litEnd);
+    o += lit;
+    if (!matchLen) return;
+    out[o++] = offset & 0xFF;
+    out[o++] = offset >> 8;
+    if (matchLen - 4 >= 15) emitLength(matchLen - 4 - 15);
+  };
+
+  const matchLimit = n - 5;   // um match não passa daqui
+  const chain = new Int32Array(n);   // posição anterior com o mesmo hash
+  const insert = (pos) => {
+    const h = Math.imul(src.readUInt32LE(pos), 2654435761) >>> (32 - LZ4_HASH_BITS);
+    chain[pos] = lz4Stamp[h] === lz4Epoch ? lz4Head[h] : -1;
+    lz4Stamp[h] = lz4Epoch;
+    lz4Head[h] = pos;
+    return chain[pos];
+  };
+  while (i + 12 <= n) {
+    let cand = insert(i), bestLen = 0, bestOff = 0;
+    const word = src.readUInt32LE(i);
+    for (let depth = 0; cand >= 0 && i - cand <= 0xFFFF && depth < LZ4_CHAIN_DEPTH; depth++, cand = chain[cand]) {
+      if (src.readUInt32LE(cand) !== word) continue;
+      let len = 4;
+      while (i + len < matchLimit && src[cand + len] === src[i + len]) len++;
+      if (len > bestLen) { bestLen = len; bestOff = i - cand; }
+    }
+    if (bestLen >= 4) {
+      emit(i, bestOff, bestLen);
+      // Indexa o que o match cobriu, para os seguintes o poderem referir.
+      for (let k = i + 1; k < i + bestLen && k + 12 <= n; k++) insert(k);
+      i += bestLen;
+      anchor = i;
+    } else {
+      i++;
+    }
+  }
+  emit(n, 0, 0);
+  return out.subarray(0, o);
+}
+
+/** Descomprime um bloco LZ4 (a mesma validação do firmware). Devolve null se estiver corrompido. */
+function lz4Decompress(src, maxOut) {
+  const out = Buffer.allocUnsafe(maxOut);
+  let s = 0, d = 0;
+  while (s < src.length) {
+    const token = src[s++];
+    let lit = token >> 4;
+    if (lit === 15) {
+      let b;
+      do { if (s >= src.length) return null; b = src[s++]; lit += b; } while (b === 255);
+    }
+    if (lit > src.length - s || lit > maxOut - d) return null;
+    src.copy(out, d, s, s + lit);
+    d += lit; s += lit;
+    if (s >= src.length) break;
+    if (src.length - s < 2) return null;
+    const off = src[s] | (src[s + 1] << 8);
+    s += 2;
+    if (!off || off > d) return null;
+    let len = token & 15;
+    if (len === 15) {
+      let b;
+      do { if (s >= src.length) return null; b = src[s++]; len += b; } while (b === 255);
+    }
+    len += 4;
+    if (len > maxOut - d) return null;
+    for (let k = 0; k < len; k++, d++) out[d] = out[d - off];
+  }
+  return out.subarray(0, d);
+}
+
 function rleDecode(data) {
   const out = [];
   let i = 0;
@@ -126,61 +222,134 @@ function rleDecode(data) {
   return Buffer.from(out);
 }
 
+// Um retângulo comprimido com LZ4 é descomprimido de uma vez no ESP32, num
+// buffer de LZ4_MAX_PIXELS pixels (LZ4_BUF no firmware): tem de ser igual lá.
+const LZ4_MAX_PIXELS = 8192;
+
+const TILE_W = 16, TILE_H = 16;
+const MERGE_GAP = 1;   // tiles limpos que ainda se juntam a dois alterados vizinhos
+
+/** Parte um retângulo em faixas de até LZ4_MAX_PIXELS pixels. */
+function splitRect([x, y, w, h]) {
+  const rows = Math.max(1, Math.floor(LZ4_MAX_PIXELS / w));
+  const out = [];
+  for (let y0 = 0; y0 < h; y0 += rows) out.push([x, y + y0, w, Math.min(rows, h - y0)]);
+  return out;
+}
+
 /**
- * Retângulos alterados entre dois frames: um por faixa horizontal de `band`
- * linhas. Sem frame anterior devolve todas as faixas (o ecrã inteiro), para
- * nenhum pacote passar do tamanho de uma faixa.
+ * Retângulos alterados entre dois frames. O frame é dividido em tiles de
+ * TILE_W x TILE_H; tiles alterados vizinhos na mesma linha juntam-se num troço
+ * e troços iguais em linhas seguidas num retângulo, que depois é cortado ao
+ * mínimo que contém as diferenças. Assim, um widget que muda no meio do ecrã
+ * não arrasta a largura toda. Sem frame anterior devolve o ecrã inteiro.
+ * O array traz changedPx, o número de pixels diferentes.
  */
-function dirtyRects(prev, cur, width, height, band = 16) {
+function dirtyRects(prev, cur, width, height) {
+  let rects;
   if (!prev || prev.length !== cur.length) {
-    const all = [];
-    for (let y = 0; y < height; y += band) all.push([0, y, width, Math.min(band, height - y)]);
-    return all;
+    rects = splitRect([0, 0, width, height]);
+    rects.changedPx = width * height;
+    return rects;
   }
-  const rects = [];
-  for (let y0 = 0; y0 < height; y0 += band) {
-    const y1 = Math.min(height, y0 + band);
-    let minX = width, maxX = -1, minY = -1, maxY = -1;
-    for (let y = y0; y < y1; y++) {
-      const base = y * width;
-      let rowMin = -1, rowMax = -1;
-      for (let x = 0; x < width; x++) {
-        if (prev[base + x] !== cur[base + x]) {
-          rowMin = x;
-          break;
+
+  const cols = Math.ceil(width / TILE_W), rows = Math.ceil(height / TILE_H);
+  const n = cols * rows;
+  // Por tile: caixa (inclusiva) das diferenças; minX = -1 se limpo.
+  const minX = new Int32Array(n).fill(-1), maxX = new Int32Array(n);
+  const minY = new Int32Array(n), maxY = new Int32Array(n);
+  let changedPx = 0;
+
+  for (let ty = 0; ty < rows; ty++) {
+    const y1 = Math.min(height, (ty + 1) * TILE_H);
+    for (let tx = 0; tx < cols; tx++) {
+      const x0 = tx * TILE_W, x1 = Math.min(width, x0 + TILE_W), t = ty * cols + tx;
+      let bx0 = x1, bx1 = -1, by0 = -1, by1 = -1;
+      for (let y = ty * TILE_H; y < y1; y++) {
+        const base = y * width;
+        let hit = false;
+        for (let x = x0; x < x1; x++) {
+          if (prev[base + x] !== cur[base + x]) {
+            changedPx++;
+            hit = true;
+            if (x < bx0) bx0 = x;
+            if (x > bx1) bx1 = x;
+          }
+        }
+        if (hit) {
+          if (by0 < 0) by0 = y;
+          by1 = y;
         }
       }
-      if (rowMin < 0) continue;
-      for (let x = width - 1; x >= rowMin; x--) {
-        if (prev[base + x] !== cur[base + x]) {
-          rowMax = x;
-          break;
-        }
+      if (by0 >= 0) {
+        minX[t] = bx0; maxX[t] = bx1; minY[t] = by0; maxY[t] = by1;
       }
-      if (minY < 0) minY = y;
-      maxY = y;
-      if (rowMin < minX) minX = rowMin;
-      if (rowMax > maxX) maxX = rowMax;
     }
-    if (minY >= 0) rects.push([minX, minY, maxX - minX + 1, maxY - minY + 1]);
   }
+
+  const all = [], open = new Map();
+  for (let ty = 0; ty < rows; ty++) {
+    let tx = 0;
+    while (tx < cols) {
+      if (minX[ty * cols + tx] < 0) { tx++; continue; }
+      let last = tx;
+      for (let k = tx + 1; k < cols && k - last - 1 <= MERGE_GAP; k++) {
+        if (minX[ty * cols + k] >= 0) last = k;
+      }
+      let bx0 = Infinity, bx1 = -1, by0 = Infinity, by1 = -1;
+      for (let k = tx; k <= last; k++) {
+        const t = ty * cols + k;
+        if (minX[t] < 0) continue;
+        bx0 = Math.min(bx0, minX[t]); bx1 = Math.max(bx1, maxX[t]);
+        by0 = Math.min(by0, minY[t]); by1 = Math.max(by1, maxY[t]);
+      }
+      const key = tx * 1000 + last;
+      const r = open.get(key);
+      if (r && r.ty === ty - 1) {
+        r.ty = ty;
+        r.x0 = Math.min(r.x0, bx0); r.x1 = Math.max(r.x1, bx1); r.y1 = by1;
+      } else {
+        const nr = { ty, x0: bx0, x1: bx1, y0: by0, y1: by1 };
+        open.set(key, nr);
+        all.push(nr);
+      }
+      tx = last + 1;
+    }
+  }
+
+  rects = [];
+  for (const r of all) rects.push(...splitRect([r.x0, r.y0, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1]));
+  rects.changedPx = changedPx;
   return rects;
 }
 
-/** Pacote para um retângulo: RLE ou raw, o que for mais pequeno. */
-function rectPacket(frame, stride, x, y, w, h, offX = 0, offY = 0) {
+/**
+ * Pacote para um retângulo: o formato mais pequeno entre raw, RLE e LZ4
+ * (este só com lz4 = true, quando o firmware o suporta).
+ */
+function rectPacket(frame, stride, x, y, w, h, offX = 0, offY = 0, lz4 = false) {
   const px = rectPixels(frame, stride, x, y, w, h);
+  const wire = toWire(px);
+  let type = PKT.RECT_RAW, data = wire;
   const rle = rleEncode(px);
-  if (rle.length < px.length * 2) return packet(PKT.RECT_RLE, x + offX, y + offY, w, h, rle);
-  return packet(PKT.RECT_RAW, x + offX, y + offY, w, h, toWire(px));
+  if (rle.length < data.length) { type = PKT.RECT_RLE; data = rle; }
+  if (lz4 && px.length <= LZ4_MAX_PIXELS) {
+    const z = lz4Compress(wire);
+    if (z.length < data.length) { type = PKT.RECT_LZ4; data = z; }
+  }
+  return packet(type, x + offX, y + offY, w, h, data);
 }
 
 /**
  * Pacotes para passar de prev a cur. O frame tem o tamanho da área visível;
  * offX/offY deslocam-no para a posição dessa área no controlador do LCD.
+ * O array traz stats: { rects, changedPx, sentPx }.
  */
-function encodeFrame(prev, cur, width, height, offX = 0, offY = 0) {
-  return dirtyRects(prev, cur, width, height).map(([x, y, w, h]) => rectPacket(cur, width, x, y, w, h, offX, offY));
+function encodeFrame(prev, cur, width, height, offX = 0, offY = 0, { lz4 = false } = {}) {
+  const rects = dirtyRects(prev, cur, width, height);
+  const packets = rects.map(([x, y, w, h]) => rectPacket(cur, width, x, y, w, h, offX, offY, lz4));
+  packets.stats = { rects: rects.length, changedPx: rects.changedPx, sentPx: rects.reduce((n, r) => n + r[2] * r[3], 0) };
+  return packets;
 }
 
 /** Pinta um retângulo do controlador de uma cor (RGB565). */
@@ -227,6 +396,7 @@ function parseHello(p) {
     width: p.readUInt16LE(1),     // controlador do LCD
     height: p.readUInt16LE(3),
     dma: !!(p[5] & 1),
+    lz4: !!(p[5] & 2),   // aceita PKT_RECT_LZ4
     // v3: área visível guardada no ESP32
     viewport: p.length >= 14
       ? { x: p.readUInt16LE(6), y: p.readUInt16LE(8), width: p.readUInt16LE(10), height: p.readUInt16LE(12) }
@@ -275,5 +445,5 @@ function parseError(p) {
 
 module.exports = {
   PKT, RSP, packet, syncPacket, bgraToRgb565, rectPixels, toWire, rleEncode, rleDecode,
-  dirtyRects, rectPacket, encodeFrame, fillPacket, ReplyParser, parseHello, parseAck, parseError, describeReset, LCD_LANGS,
+  dirtyRects, splitRect, rectPacket, lz4Compress, lz4Decompress, LZ4_MAX_PIXELS, encodeFrame, fillPacket, ReplyParser, parseHello, parseAck, parseError, describeReset, LCD_LANGS,
 };

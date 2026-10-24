@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const ROWS = 6;
+
+  /** Corta o texto com "…" para caber em maxW. */
+  function fit(text, maxW) {
+    if (ctx.measureText(text).width <= maxW) return text;
+    while (text.length > 1 && ctx.measureText(text + '…').width > maxW) text = text.slice(0, -1);
+    return text + '…';
+  }
+
+  function draw(p, w, h) {
+    canvas.width = w;
+    canvas.height = h;
+    ctx.clearRect(0, 0, w, h);
+    const rows = [];
+    for (let i = 1; i <= ROWS; i++) {
+      const s = p['sensor' + i];
+      if (s || p['label' + i]) rows.push({ s, label: p['label' + i] || (s ? s.name : '') });
+    }
+    if (!rows.length) return;
+
+    const family = `"${p.font || 'Segoe UI'}", "Segoe UI", system-ui, sans-serif`;
+    const rowH = h / rows.length;
+    const fs = Number(p.size) > 0 ? Number(p.size) : Math.max(8, Math.min(28, Math.round(rowH * 0.5)));
+    ctx.textBaseline = 'middle';
+    rows.forEach((r, i) => {
+      const cy = rowH * i + rowH / 2;
+      const value = r.s ? Widget.format(r.s, p.decimals) + (r.s.unit ? ' ' + r.s.unit : '') : '';
+      ctx.font = `${p.weight || '600'} ${fs}px ${family}`;
+      const vw = ctx.measureText(value).width;
+      ctx.fillStyle = p.valueColor;
+      ctx.textAlign = 'right';
+      ctx.fillText(value, w - 2, cy);
+
+      ctx.font = `${fs}px ${family}`;
+      ctx.fillStyle = p.labelColor;
+      ctx.textAlign = 'left';
+      ctx.fillText(fit(r.label, w - vw - fs - 4), 2, cy);
+
+      if (p.separators && i < rows.length - 1) {
+        const y = Math.round(rowH * (i + 1)) + 0.5;
+        ctx.strokeStyle = p.separatorColor;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      }
+    });
+  }
+
+  Widget.onUpdate((p, { size }) => draw(p, size.width, size.height));
+</script>
+</body>
+</html>

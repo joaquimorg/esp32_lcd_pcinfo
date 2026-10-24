@@ -1,0 +1,205 @@
+{
+  "name": "Level",
+  "description": "Segmented or plain bar, horizontal or vertical (VU meter, tank, thermometer).",
+  "size": {
+    "w": 40,
+    "h": 140
+  },
+  "properties": [
+    {
+      "key": "sensor",
+      "type": "sensor",
+      "label": "Sensor"
+    },
+    {
+      "key": "label",
+      "type": "text",
+      "label": "Caption",
+      "default": ""
+    },
+    {
+      "key": "min",
+      "type": "number",
+      "label": "Minimum",
+      "default": 0
+    },
+    {
+      "key": "max",
+      "type": "number",
+      "label": "Maximum",
+      "default": 100
+    },
+    {
+      "key": "decimals",
+      "type": "number",
+      "label": "Decimal places",
+      "default": 0,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "key": "font",
+      "type": "select",
+      "label": "Font",
+      "default": "Segoe UI",
+      "options": [
+        "Segoe UI",
+        "Arial",
+        "Calibri",
+        "Verdana",
+        "Tahoma",
+        "Trebuchet MS",
+        "Consolas",
+        "Courier New",
+        "Times New Roman",
+        "Georgia",
+        "Impact",
+        "Comic Sans MS"
+      ]
+    },
+    {
+      "key": "orientation",
+      "type": "select",
+      "label": "Orientation",
+      "default": "vertical",
+      "options": [
+        "horizontal",
+        "vertical"
+      ],
+      "optionLabels": {
+        "horizontal": "horizontal",
+        "vertical": "vertical"
+      }
+    },
+    {
+      "key": "segments",
+      "type": "number",
+      "label": "Segments (1 = plain bar)",
+      "default": 10,
+      "min": 1,
+      "max": 60
+    },
+    {
+      "key": "gap",
+      "type": "number",
+      "label": "Gap between segments (px)",
+      "default": 3,
+      "min": 0,
+      "max": 12
+    },
+    {
+      "key": "rounded",
+      "type": "boolean",
+      "label": "Rounded corners",
+      "default": true
+    },
+    {
+      "key": "colorBy",
+      "type": "select",
+      "label": "Colour by",
+      "default": "position",
+      "options": [
+        "position",
+        "value"
+      ],
+      "optionLabels": {
+        "position": "segment position (VU)",
+        "value": "current value"
+      }
+    },
+    {
+      "key": "showValue",
+      "type": "boolean",
+      "label": "Show value",
+      "default": true
+    },
+    {
+      "key": "color",
+      "type": "color",
+      "label": "Colour (low)",
+      "default": "#3ddc84"
+    },
+    {
+      "key": "colorHigh",
+      "type": "color",
+      "label": "Colour (high)",
+      "default": "#ff5252"
+    },
+    {
+      "key": "trackColor",
+      "type": "color",
+      "label": "Track colour",
+      "default": "#2d3138"
+    },
+    {
+      "key": "textColor",
+      "type": "color",
+      "label": "Text colour",
+      "default": "#ffffff"
+    }
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Nível",
+      "description": "Barra por segmentos ou simples, horizontal ou vertical (VU, depósito, termómetro).",
+      "properties": {
+        "sensor": {
+          "label": "Sensor"
+        },
+        "label": {
+          "label": "Legenda"
+        },
+        "min": {
+          "label": "Mínimo"
+        },
+        "max": {
+          "label": "Máximo"
+        },
+        "decimals": {
+          "label": "Casas decimais"
+        },
+        "font": {
+          "label": "Tipo de letra"
+        },
+        "orientation": {
+          "label": "Orientação",
+          "optionLabels": {
+            "horizontal": "horizontal",
+            "vertical": "vertical"
+          }
+        },
+        "segments": {
+          "label": "Segmentos (1 = barra simples)"
+        },
+        "gap": {
+          "label": "Espaço entre segmentos (px)"
+        },
+        "rounded": {
+          "label": "Cantos redondos"
+        },
+        "colorBy": {
+          "label": "Cor por",
+          "optionLabels": {
+            "position": "posição do segmento (VU)",
+            "value": "valor atual"
+          }
+        },
+        "showValue": {
+          "label": "Mostrar valor"
+        },
+        "color": {
+          "label": "Cor (baixo)"
+        },
+        "colorHigh": {
+          "label": "Cor (alto)"
+        },
+        "trackColor": {
+          "label": "Cor do fundo"
+        },
+        "textColor": {
+          "label": "Cor do texto"
+        }
+      }
+    }
+  }
+}

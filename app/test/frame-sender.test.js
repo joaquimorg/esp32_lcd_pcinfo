@@ -42,7 +42,8 @@ class FakeDevice extends EventEmitter {
       for (let r = y; r < y + h; r++) this.screen.fill((payload[0] << 8) | payload[1], r * W + x, r * W + x + w);
       return;
     }
-    const bytes = type === P.PKT.RECT_RLE ? P.rleDecode(payload) : payload;
+    const bytes = type === P.PKT.RECT_RLE ? P.rleDecode(payload)
+      : type === P.PKT.RECT_LZ4 ? P.lz4Decompress(payload, w * h * 2) : payload;
     for (let k = 0; k < w * h; k++) {
       this.screen[(y + Math.floor(k / w)) * W + x + (k % w)] = (bytes[2 * k] << 8) | bytes[2 * k + 1];
     }
@@ -83,4 +84,22 @@ test('um frame completo vai em lotes pequenos, um por ACK, e chega inteiro', () 
   assert.ok(dev.sends.length > 10, `${dev.sends.length} lotes`);
   for (const n of dev.sends) assert.ok(n <= BATCH_BYTES, `lote de ${n} bytes`);
   assert.deepStrictEqual(dev.screen, next);
+});
+
+test('com LZ4 no HELLO o frame vai comprimido, com contadores de diagnóstico', () => {
+  const dev = new FakeDevice();
+  dev.info = { lz4: true };
+  const sender = new FrameSender(dev);
+  sender.setGeometry({ x: 0, y: 0, width: W, height: H }, { width: W, height: H });
+
+  const frame = new Uint16Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) frame[y * W + x] = ((x >> 3) * 31 + (y >> 4) * 7) & 0xFFFF;
+  sender.submit(frame);
+  while (dev.busy) dev.ack();
+
+  assert.deepStrictEqual(dev.screen, frame);
+  const c = sender.takeCounters();
+  assert.ok(c.byType.lz4 > 0, 'usou LZ4');
+  assert.ok(c.bytes < W * H * 2 / 4, `${c.bytes} bytes`);
+  assert.ok(c.rects > 0 && c.sentPx >= c.changedPx);
 });

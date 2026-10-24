@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body { display: flex; align-items: center; justify-content: center; gap: .5em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #lamp { flex: none; }
+  #text { min-width: 0; line-height: 1.1; }
+  #label { overflow: hidden; text-overflow: ellipsis; }
+  #value { font-weight: 600; }
+</style>
+</head>
+<body>
+  <div id="lamp"></div>
+  <div id="text"><div id="label"></div><div id="value"></div></div>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  /** Estado: 'off' sem leitura, senão ok / warn / crit pelos limites (ou ao contrário, com "invert"). */
+  function status(p) {
+    const v = p.sensor ? p.sensor.value : null;
+    if (v == null) return 'off';
+    const warn = Number(p.warn), crit = Number(p.crit);
+    if (p.invert) return v <= crit ? 'crit' : v <= warn ? 'warn' : 'ok';
+    return v >= crit ? 'crit' : v >= warn ? 'warn' : 'ok';
+  }
+
+  Widget.onUpdate((p, { size }) => {
+    const color = { ok: p.okColor, warn: p.warnColor, crit: p.critColor, off: p.offColor }[status(p)];
+    const label = p.showLabel ? (p.label || (p.sensor ? p.sensor.name : '')) : '';
+    const value = p.showValue ? Widget.format(p.sensor, p.decimals) + (p.sensor && p.sensor.unit ? ' ' + p.sensor.unit : '') : '';
+    const hasText = !!(label || value);
+
+    // Sem texto o indicador ocupa tudo; com texto, a lâmpada fica à esquerda.
+    const lamp = Math.max(6, Math.round(Math.min(size.height, hasText ? size.width * 0.4 : size.width) * (hasText ? 0.7 : 0.8)));
+    const radius = { circle: '50%', rounded: '22%', square: '0' }[p.shape] || '50%';
+    Object.assign($('lamp').style, {
+      width: lamp + 'px', height: lamp + 'px', borderRadius: radius, background: color,
+      boxShadow: p.glow ? `0 0 ${Math.round(lamp * 0.35)}px ${color}` : 'none',
+    });
+
+    document.body.style.fontFamily = `"${p.font || 'Segoe UI'}", "Segoe UI", system-ui, sans-serif`;
+    $('text').style.display = hasText ? '' : 'none';
+    $('label').textContent = label;
+    $('label').style.display = label ? '' : 'none';
+    $('label').style.color = p.labelColor;
+    $('value').textContent = value;
+    $('value').style.display = value ? '' : 'none';
+    $('value').style.color = p.textColor;
+    const fs = Math.max(8, Math.round(size.height * (label && value ? 0.34 : 0.5)));
+    $('label').style.fontSize = Math.round(fs * 0.8) + 'px';
+    $('value').style.fontSize = fs + 'px';
+    $('text').style.maxWidth = Math.max(10, size.width - lamp - 8) + 'px';
+  });
+</script>
+</body>
+</html>

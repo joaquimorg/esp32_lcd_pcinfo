@@ -9,46 +9,85 @@
     font-family: "Segoe UI", system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap;
   }
   #time { font-weight: 300; line-height: 1; }
+  #sec { margin-left: .08em; }
+  #ampm { margin-left: .2em; }
+  #bar { display: none; background: color-mix(in srgb, var(--sc) 25%, transparent); }
+  #fill { height: 100%; background: var(--sc); }
   #date { margin-top: .2em; }
 </style>
 </head>
 <body>
-  <div id="time"></div>
+  <div id="time"><span id="hm"><span id="h"></span><span id="colon">:</span><span id="m"></span></span><span id="sec"></span><span id="ampm"></span></div>
+  <div id="bar"><div id="fill"></div></div>
   <div id="date"></div>
 <script src="../_sdk/widget-sdk.js"></script>
 <script>
-  const timeEl = document.getElementById('time');
-  const dateEl = document.getElementById('date');
+  const $ = (id) => document.getElementById(id);
   let props = null;
   let size = { width: 220, height: 120 };
   let locale = 'en-GB';
 
+  const setText = (el, text) => { if (el.textContent !== text) el.textContent = text; };
+
   function render() {
     if (!props) return;
     const now = new Date();
-    const time = now.toLocaleTimeString(locale, {
-      hour: '2-digit', minute: '2-digit', ...(props.seconds ? { second: '2-digit' } : {}),
-    });
-    if (timeEl.textContent !== time) timeEl.textContent = time;
+    const hour12 = props.hourFormat === '12' ? true : props.hourFormat === '24' ? false : undefined;
+    const parts = {};
+    for (const part of new Intl.DateTimeFormat(locale, {
+      hour: hour12 ? 'numeric' : '2-digit', minute: '2-digit', second: '2-digit', hour12,
+    }).formatToParts(now)) parts[part.type] = part.value;
+
+    const style = props.secondsStyle || 'normal';
+    setText($('h'), parts.hour);
+    setText($('m'), parts.minute);
+    setText($('ampm'), hour12 && parts.dayPeriod ? parts.dayPeriod : '');
+    // Dois pontos a piscar: o espaço fica reservado, só muda a opacidade.
+    $('colon').style.opacity = props.blinkColon && now.getSeconds() % 2 ? '0' : '1';
+
+    const showText = props.seconds && style !== 'bar';
+    setText($('sec'), showText ? (style === 'small' ? parts.second : ':' + parts.second) : '');
+    $('bar').style.display = props.seconds && style === 'bar' ? 'block' : 'none';
+    $('fill').style.width = (now.getSeconds() / 59 * 100).toFixed(1) + '%';
+    $('bar').style.width = $('hm').offsetWidth + 'px';
+
     let date = now.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
     date = date.charAt(0).toUpperCase() + date.slice(1);
-    if (dateEl.textContent !== date) dateEl.textContent = date;
+    setText($('date'), date);
   }
 
   Widget.onUpdate((p, info) => {
     props = p;
     size = info.size;
     locale = Widget.locale(info);
-    timeEl.style.color = p.color;
-    dateEl.style.color = p.dateColor;
-    dateEl.style.display = p.showDate ? '' : 'none';
+    const style = p.secondsStyle || 'normal';
+    const family = `"${p.font || 'Segoe UI'}", "Segoe UI", system-ui, sans-serif`;
+    const secColor = p.secondsColor || '#9aa0a6';
+
+    document.body.style.fontFamily = family;
+    Object.assign($('time').style, {
+      color: p.color,
+      fontWeight: p.weight || '300',
+      fontStyle: p.italic ? 'italic' : 'normal',
+    });
+    $('sec').style.color = style === 'normal' ? '' : secColor;
+    $('sec').style.fontSize = style === 'small' ? '.5em' : '';
+    $('ampm').style.fontSize = '.4em';
+    document.body.style.setProperty('--sc', secColor);
+    $('date').style.color = p.dateColor;
+    $('date').style.display = p.showDate ? '' : 'none';
     render();
 
-    const ratio = p.showDate ? 0.55 : 0.8;
-    let fs = Math.round(size.height * ratio);
+    const bar = p.seconds && style === 'bar';
+    let fs = Math.round(size.height * (p.showDate ? (bar ? 0.5 : 0.55) : (bar ? 0.72 : 0.8)));
+    const timeEl = $('time');
     timeEl.style.fontSize = fs + 'px';
     while (fs > 8 && timeEl.scrollWidth > size.width) timeEl.style.fontSize = (--fs) + 'px';
-    dateEl.style.fontSize = Math.max(9, Math.round(size.height * 0.14)) + 'px';
+    // A barra tem a largura da hora e dura 60 s.
+    $('bar').style.width = $('hm').offsetWidth + 'px';
+    $('bar').style.height = Math.max(2, Math.round(fs * 0.07)) + 'px';
+    $('bar').style.marginTop = Math.round(fs * 0.1) + 'px';
+    $('date').style.fontSize = Math.max(9, Math.round(size.height * 0.14)) + 'px';
   });
 
   setInterval(render, 1000);

@@ -28,9 +28,12 @@ Created by [joaquim.org](https://joaquim.org) · [MIT License](LICENSE)
 ## Features
 
 - **Visual editor**: drag, resize and configure components; snapping guides
-  to other components and to the screen centre; arrow keys for 1 px moves.
-- **Data components**: gauge, value, bar, graph (sensor history), clock and
-  text.
+  to other components and to the screen centre; arrow keys for 1 px moves;
+  lock components so they cannot be moved by accident.
+- **Data components**: gauge, ring, value, bar, level (segmented or plain,
+  horizontal or vertical), graph and trend card (sensor history), sensor list,
+  indicator lamp, sensor text, clock, date and text. Text, clock and sensor
+  text have font, weight and italic options.
 - **Shapes**: line (solid, dashed, dotted), rectangle (rounded corners,
   border, gradient), circle/ellipse, arc/ring (with a colour gradient along
   the arc) and polygon/star.
@@ -136,7 +139,7 @@ flash the file at address **0x0**, either from the browser with the
 esptool:
 
 ```
-esptool.py --chip esp32s2 --port COMx write_flash 0x0 usb-lcd-firmware-esp32s2-0.7.0.bin
+esptool.py --chip esp32s2 --port COMx write_flash 0x0 usb-lcd-firmware-esp32s2-0.10.0.bin
 ```
 
 Press **RST** when it finishes.
@@ -289,8 +292,11 @@ Windows app (Electron)                                   ESP32-S2 + LCD
 ```
 
 - The app renders the LCD page offscreen at the panel resolution, converts
-  each frame to RGB565 and compares it with the previous one in 16-line bands.
-  Changed bands go out as RLE or raw rectangles, whichever is smaller.
+  each frame to RGB565 and compares it with the previous one in 16×16 tiles.
+  Neighbouring changed tiles are merged and trimmed to the exact changed area,
+  so a widget changing in the middle of the screen does not resend whole lines.
+  Each rectangle goes out as raw, RLE or LZ4 (if the firmware supports it),
+  whichever is smaller. LZ4 is about 2.4× smaller than RLE on real LCD frames.
 - Frames are sent in batches of up to 16 KB, one at a time: the next batch only
   goes after the ESP32 acknowledges the previous one. This keeps the ESP32's
   32 KB receive buffer from filling up, which on the ESP32-S2 could stall the
@@ -332,7 +338,9 @@ npm start -- --screenshot=out --profile=tmp # captures the app and LCD images in
 ```
 
 With the environment variable `LCD_DEBUG=1` (PowerShell: `$env:LCD_DEBUG=1; npm start`)
-the app prints the frames per second and KB/s sent to the LCD.
+the app prints, every second, the frames per second and KB/s sent to the LCD,
+the KB per format (raw, RLE, LZ4, fill), the rectangles, and the pixels sent
+against the pixels that really changed (the closer, the less is wasted).
 
 To add a language, add a table to [app/src/i18n.js](app/src/i18n.js), an
 `i18n.<lang>` section to the built-in manifests, and the waiting-screen texts

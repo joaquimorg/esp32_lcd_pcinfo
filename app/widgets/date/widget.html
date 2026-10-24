@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  #card { width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; box-sizing: border-box; }
+  #band { display: flex; align-items: center; justify-content: center; white-space: nowrap; font-weight: 600; letter-spacing: .06em; flex: none; }
+  #body { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; white-space: nowrap; }
+  #day { font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  #weekday, #month { line-height: 1.1; }
+  #weekday { margin-top: .15em; }
+</style>
+</head>
+<body>
+  <div id="card">
+    <div id="band"></div>
+    <div id="body"><div id="day"></div><div id="weekday"></div><div id="month"></div></div>
+  </div>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let props = null, size = { width: 120, height: 120 }, locale = 'en-GB';
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const setText = (el, text) => { if (el.textContent !== text) el.textContent = text; };
+
+  function render() {
+    if (!props) return;
+    const now = new Date();
+    const month = now.toLocaleDateString(locale, { month: 'long' });
+    const year = props.showYear ? ' ' + now.getFullYear() : '';
+    // Layout "page": o mês na faixa de cima. "plain": mês por baixo do dia.
+    const page = props.layout !== 'plain';
+    setText($('band'), page ? cap(month).toUpperCase() + year : '');
+    setText($('day'), String(now.getDate()));
+    const weekday = props.showWeekday ? cap(now.toLocaleDateString(locale, { weekday: 'long' })) : '';
+    setText($('weekday'), weekday);
+    setText($('month'), page ? '' : cap(month) + year);
+  }
+
+  Widget.onUpdate((p, info) => {
+    props = p;
+    size = info.size;
+    locale = Widget.locale(info);
+    const page = p.layout !== 'plain';
+    const card = $('card').style;
+    card.fontFamily = `"${p.font || 'Segoe UI'}", "Segoe UI", system-ui, sans-serif`;
+    card.background = page ? p.panelColor : 'transparent';
+    card.borderRadius = (page ? Math.max(0, Number(p.radius) || 0) : 0) + 'px';
+
+    const bandH = page ? Math.round(size.height * 0.24) : 0;
+    Object.assign($('band').style, {
+      display: page ? 'flex' : 'none', height: bandH + 'px', background: p.accent, color: p.bandTextColor,
+      fontSize: Math.max(8, Math.round(bandH * 0.52)) + 'px',
+    });
+
+    const bodyH = size.height - bandH;
+    $('day').style.color = p.color;
+    for (const id of ['weekday', 'month']) {
+      $(id).style.color = p.subColor;
+      $(id).style.fontSize = Math.max(8, Math.round(bodyH * (page ? 0.17 : 0.14))) + 'px';
+    }
+    render();
+    let fs = Math.round(bodyH * (page ? (p.showWeekday ? 0.58 : 0.72) : 0.5));
+    $('day').style.fontSize = fs + 'px';
+    while (fs > 8 && $('day').scrollWidth > size.width - 8) $('day').style.fontSize = (--fs) + 'px';
+  });
+
+  setInterval(render, 30000);
+</script>
+</body>
+</html>

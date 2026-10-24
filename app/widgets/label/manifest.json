@@ -4,9 +4,12 @@
   "size": {"w": 200, "h": 30},
   "properties": [
     {"key": "text", "type": "text", "label": "Text", "default": "Texto"},
+    {"key": "font", "type": "select", "label": "Font", "default": "Segoe UI", "options": ["Segoe UI", "Arial", "Calibri", "Verdana", "Tahoma", "Trebuchet MS", "Consolas", "Courier New", "Times New Roman", "Georgia", "Impact", "Comic Sans MS"]},
     {"key": "size", "type": "number", "label": "Size (px)", "default": 20, "min": 6, "max": 200},
     {"key": "color", "type": "color", "label": "Colour", "default": "#ffffff"},
-    {"key": "weight", "type": "select", "label": "Weight", "default": "400", "options": ["300", "400", "600", "800"], "optionLabels": {"300": "300 (light)", "400": "400 (normal)", "600": "600 (semibold)", "800": "800 (bold)"}},
+    {"key": "weight", "type": "select", "label": "Weight", "default": "400", "options": ["300", "400", "600", "700", "800"], "optionLabels": {"300": "300 (light)", "400": "400 (normal)", "600": "600 (semibold)", "700": "700 (bold)", "800": "800 (extra bold)"}},
+    {"key": "italic", "type": "boolean", "label": "Italic", "default": false},
+    {"key": "underline", "type": "boolean", "label": "Underline", "default": false},
     {"key": "align", "type": "select", "label": "Alignment", "default": "center", "options": ["left", "center", "right"], "optionLabels": {"center": "centre"}}
   ],
   "i18n": {
@@ -15,9 +18,12 @@
       "description": "Texto fixo (títulos, legendas).",
       "properties": {
         "text": {"label": "Texto"},
+        "font": {"label": "Tipo de letra"},
         "size": {"label": "Tamanho (px)"},
         "color": {"label": "Cor"},
-        "weight": {"label": "Peso", "optionLabels": {"300": "300 (fino)", "400": "400 (normal)", "600": "600 (meio negrito)", "800": "800 (negrito)"}},
+        "weight": {"label": "Peso", "optionLabels": {"300": "300 (fino)", "400": "400 (normal)", "600": "600 (meio negrito)", "700": "700 (negrito)", "800": "800 (extra negrito)"}},
+        "italic": {"label": "Itálico"},
+        "underline": {"label": "Sublinhado"},
         "align": {"label": "Alinhamento", "optionLabels": {"left": "esquerda", "center": "centro", "right": "direita"}}
       }
     }

@@ -123,7 +123,12 @@ function renderLayers() {
     const { name, extra } = componentLabel(c);
     list.append(h('li', { class: c.id === selectedId ? 'active' : '', onclick: () => selectComponent(c.id) },
       h('span', { class: 'name' }, name),
-      h('span', { class: 'meta' }, extra)));
+      h('span', { class: 'meta' }, extra),
+      h('button', {
+        class: 'lock-btn' + (c.locked ? ' on' : ''),
+        title: t(c.locked ? 'edit.unlockTitle' : 'edit.lockTitle'),
+        onclick: (e) => { e.stopPropagation(); setLocked(c, !c.locked); },
+      }, c.locked ? '🔒' : '🔓')));
   });
 }
 
@@ -156,7 +161,7 @@ function renderOverlay() {
   for (const c of editing()?.components || []) {
     const out = c.x + c.w > size.width || c.y + c.h > size.height;
     const box = h('div', {
-      class: 'box' + (c.id === selectedId ? ' selected' : '') + (out ? ' out' : ''),
+      class: 'box' + (c.id === selectedId ? ' selected' : '') + (out ? ' out' : '') + (c.locked ? ' locked' : ''),
       'data-id': c.id,
       title: out ? t('edit.outside') : null,
     },
@@ -165,6 +170,16 @@ function renderOverlay() {
     placeBox(box, c);
     overlay.append(box);
   }
+}
+
+/** Um componente bloqueado não muda de posição nem de tamanho (rato, setas, campos). */
+function setLocked(c, locked) {
+  if (locked) c.locked = true;
+  else delete c.locked;
+  commit();
+  renderOverlay();
+  renderLayers();
+  renderInspector();
 }
 
 function selectComponent(id) {
@@ -212,6 +227,7 @@ $('#overlay').addEventListener('pointerdown', (e) => {
   }
   const c = editing().components.find((x) => x.id === box.dataset.id);
   selectComponent(c.id);
+  if (c.locked) return;
   const mode = e.target.classList.contains('handle') ? 'resize' : 'move';
   const start = { x: e.clientX, y: e.clientY, cx: c.x, cy: c.y, cw: c.w, ch: c.h };
   const others = editing().components.filter((o) => o.id !== c.id);
@@ -259,6 +275,7 @@ $('#overlay').addEventListener('pointerdown', (e) => {
 document.addEventListener('keydown', (e) => {
   const c = selected();
   if (currentView !== 'edit' || !c || e.target.closest('input, select, textarea')) return;
+  if (c.locked) return;   // nem mover nem apagar por engano
   const step = e.shiftKey ? 10 : 1;
   const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
   if (moves[e.key]) {
@@ -315,9 +332,12 @@ function renderInspector() {
       placeBox(document.querySelector(`.box[data-id="${c.id}"]`), c);
       commit();
     }, { min: 0, max, step: 1 });
+    input.disabled = !!c.locked;
     geometryInputs[k] = input;
     return field(label, input);
   };
+  box.append(field(t('edit.lock'), toggle(c.locked, (v) => setLocked(c, v)), true));
+  if (c.locked) box.append(h('p', { class: 'desc' }, t('edit.lockedHint')));
   box.append(h('div', { class: 'grid4' },
     geo('x', 'X', size.width), geo('y', 'Y', size.height), geo('w', t('edit.width'), size.width), geo('h', t('edit.height'), size.height)));
 
@@ -330,8 +350,8 @@ function renderInspector() {
   };
   box.append(h('div', { class: 'align-row' },
     h('span', {}, t('edit.center')),
-    h('button', { class: 'btn small', title: t('edit.centerHTitle'), onclick: center('x') }, t('edit.centerH')),
-    h('button', { class: 'btn small', title: t('edit.centerVTitle'), onclick: center('y') }, t('edit.centerV'))));
+    h('button', { class: 'btn small', title: t('edit.centerHTitle'), disabled: !!c.locked, onclick: center('x') }, t('edit.centerH')),
+    h('button', { class: 'btn small', title: t('edit.centerVTitle'), disabled: !!c.locked, onclick: center('y') }, t('edit.centerV'))));
 
   const fileDef = type?.properties.find((p) => p.type === 'file');
   if (fileDef && c.props[fileDef.key]) {
@@ -340,6 +360,7 @@ function renderInspector() {
       h('button', {
         class: 'btn small',
         title: t('edit.imageSizeTitle'),
+        disabled: !!c.locked,
         onclick: () => fitToImage(c, c.props[fileDef.key]),
       }, t('edit.imageSize'))));
   }
@@ -373,6 +394,7 @@ function renderInspector() {
       class: 'btn small',
       onclick: () => {
         const copy = { ...structuredClone(c), id: newId('c'), x: clamp(c.x + 10, 0, size.width - c.w), y: clamp(c.y + 10, 0, size.height - c.h) };
+        delete copy.locked;   // a cópia fica solta, para a poder pôr no sítio
         list.push(copy);
         commit();
         renderOverlay();

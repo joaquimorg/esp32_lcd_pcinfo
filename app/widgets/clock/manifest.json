@@ -3,7 +3,14 @@
   "description": "PC time and date.",
   "size": {"w": 220, "h": 120},
   "properties": [
+    {"key": "font", "type": "select", "label": "Font", "default": "Segoe UI", "options": ["Segoe UI", "Arial", "Calibri", "Verdana", "Tahoma", "Trebuchet MS", "Consolas", "Courier New", "Times New Roman", "Georgia", "Impact", "Comic Sans MS"]},
+    {"key": "weight", "type": "select", "label": "Weight", "default": "300", "options": ["300", "400", "600", "700", "800"], "optionLabels": {"300": "300 (light)", "400": "400 (normal)", "600": "600 (semibold)", "700": "700 (bold)", "800": "800 (extra bold)"}},
+    {"key": "italic", "type": "boolean", "label": "Italic", "default": false},
+    {"key": "hourFormat", "type": "select", "label": "Hour format", "default": "auto", "options": ["auto", "24", "12"], "optionLabels": {"auto": "automatic (by language)", "24": "24 hours", "12": "12 hours (AM/PM)"}},
+    {"key": "blinkColon", "type": "boolean", "label": "Blinking colon", "default": false},
     {"key": "seconds", "type": "boolean", "label": "Show seconds", "default": false},
+    {"key": "secondsStyle", "type": "select", "label": "Seconds style", "default": "normal", "options": ["normal", "small", "dimmed", "bar"], "optionLabels": {"normal": "same as the time", "small": "small", "dimmed": "dimmed colour", "bar": "progress bar"}},
+    {"key": "secondsColor", "type": "color", "label": "Seconds colour", "default": "#9aa0a6"},
     {"key": "showDate", "type": "boolean", "label": "Show date", "default": true},
     {"key": "color", "type": "color", "label": "Time colour", "default": "#ffffff"},
     {"key": "dateColor", "type": "color", "label": "Date colour", "default": "#9aa0a6"}
@@ -13,7 +20,14 @@
       "name": "Relógio",
       "description": "Hora e data do PC.",
       "properties": {
+        "font": {"label": "Tipo de letra"},
+        "weight": {"label": "Peso", "optionLabels": {"300": "300 (fino)", "400": "400 (normal)", "600": "600 (meio negrito)", "700": "700 (negrito)", "800": "800 (extra negrito)"}},
+        "italic": {"label": "Itálico"},
+        "hourFormat": {"label": "Formato da hora", "optionLabels": {"auto": "automático (pelo idioma)", "24": "24 horas", "12": "12 horas (AM/PM)"}},
+        "blinkColon": {"label": "Dois pontos a piscar"},
         "seconds": {"label": "Mostrar segundos"},
+        "secondsStyle": {"label": "Estilo dos segundos", "optionLabels": {"normal": "igual à hora", "small": "pequenos", "dimmed": "cor esbatida", "bar": "barra de progresso"}},
+        "secondsColor": {"label": "Cor dos segundos"},
         "showDate": {"label": "Mostrar data"},
         "color": {"label": "Cor da hora"},
         "dateColor": {"label": "Cor da data"}

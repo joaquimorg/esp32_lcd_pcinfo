@@ -1,0 +1,190 @@
+{
+  "name": "Ring",
+  "description": "Full circle progress with the value in the centre.",
+  "size": {
+    "w": 120,
+    "h": 120
+  },
+  "properties": [
+    {
+      "key": "sensor",
+      "type": "sensor",
+      "label": "Sensor"
+    },
+    {
+      "key": "label",
+      "type": "text",
+      "label": "Caption",
+      "default": ""
+    },
+    {
+      "key": "min",
+      "type": "number",
+      "label": "Minimum",
+      "default": 0
+    },
+    {
+      "key": "max",
+      "type": "number",
+      "label": "Maximum",
+      "default": 100
+    },
+    {
+      "key": "decimals",
+      "type": "number",
+      "label": "Decimal places",
+      "default": 0,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "key": "font",
+      "type": "select",
+      "label": "Font",
+      "default": "Segoe UI",
+      "options": [
+        "Segoe UI",
+        "Arial",
+        "Calibri",
+        "Verdana",
+        "Tahoma",
+        "Trebuchet MS",
+        "Consolas",
+        "Courier New",
+        "Times New Roman",
+        "Georgia",
+        "Impact",
+        "Comic Sans MS"
+      ]
+    },
+    {
+      "key": "thickness",
+      "type": "number",
+      "label": "Thickness",
+      "default": 12,
+      "min": 2,
+      "max": 30
+    },
+    {
+      "key": "start",
+      "type": "number",
+      "label": "Start angle (°, 0 = top)",
+      "default": 0,
+      "min": -360,
+      "max": 360
+    },
+    {
+      "key": "clockwise",
+      "type": "boolean",
+      "label": "Clockwise",
+      "default": true
+    },
+    {
+      "key": "round",
+      "type": "boolean",
+      "label": "Rounded ends",
+      "default": true
+    },
+    {
+      "key": "showValue",
+      "type": "boolean",
+      "label": "Show value",
+      "default": true
+    },
+    {
+      "key": "showUnit",
+      "type": "boolean",
+      "label": "Show unit",
+      "default": true
+    },
+    {
+      "key": "color",
+      "type": "color",
+      "label": "Colour (low)",
+      "default": "#3aa8ff"
+    },
+    {
+      "key": "colorHigh",
+      "type": "color",
+      "label": "Colour (high)",
+      "default": "#ff5252"
+    },
+    {
+      "key": "trackColor",
+      "type": "color",
+      "label": "Track colour",
+      "default": "#2d3138"
+    },
+    {
+      "key": "textColor",
+      "type": "color",
+      "label": "Value colour",
+      "default": "#ffffff"
+    },
+    {
+      "key": "labelColor",
+      "type": "color",
+      "label": "Caption colour",
+      "default": "#9aa0a6"
+    }
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Anel",
+      "description": "Progresso em círculo completo com o valor ao centro.",
+      "properties": {
+        "sensor": {
+          "label": "Sensor"
+        },
+        "label": {
+          "label": "Legenda"
+        },
+        "min": {
+          "label": "Mínimo"
+        },
+        "max": {
+          "label": "Máximo"
+        },
+        "decimals": {
+          "label": "Casas decimais"
+        },
+        "font": {
+          "label": "Tipo de letra"
+        },
+        "thickness": {
+          "label": "Espessura"
+        },
+        "start": {
+          "label": "Ângulo inicial (°, 0 = topo)"
+        },
+        "clockwise": {
+          "label": "Sentido horário"
+        },
+        "round": {
+          "label": "Pontas redondas"
+        },
+        "showValue": {
+          "label": "Mostrar valor"
+        },
+        "showUnit": {
+          "label": "Mostrar unidade"
+        },
+        "color": {
+          "label": "Cor (baixo)"
+        },
+        "colorHigh": {
+          "label": "Cor (alto)"
+        },
+        "trackColor": {
+          "label": "Cor do fundo"
+        },
+        "textColor": {
+          "label": "Cor do valor"
+        },
+        "labelColor": {
+          "label": "Cor da legenda"
+        }
+      }
+    }
+  }
+}

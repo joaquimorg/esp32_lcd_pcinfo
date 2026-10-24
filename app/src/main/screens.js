@@ -61,7 +61,7 @@ function exportScreen(screen, { catalog, builtin, size }) {
         }
       }
     }
-    return { type: c.type, x: c.x, y: c.y, w: c.w, h: c.h, props };
+    return { type: c.type, x: c.x, y: c.y, w: c.w, h: c.h, ...(c.locked ? { locked: true } : {}), props };
   });
 
   return {
@@ -127,6 +127,7 @@ function importScreen(data, { catalog, userWidgetsDir, assetsDir, newId }) {
       id: newId('c'),
       type: typeMap[c.type] || c.type,
       x: num(c.x), y: num(c.y), w: Math.max(8, num(c.w)), h: Math.max(8, num(c.h)),
+      ...(c.locked === true ? { locked: true } : {}),
       props,
     };
   });

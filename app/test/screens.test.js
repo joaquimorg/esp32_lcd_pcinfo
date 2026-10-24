@@ -117,6 +117,24 @@ test('exportar e importar noutro PC: componente próprio e imagem viajam no fich
   assert.strictEqual(changed.screen.components[0].type, 'ai-anel-2');
 });
 
+test('exportar e importar mantêm os componentes bloqueados', () => {
+  const catalog = scanWidgets([BUILTIN]);
+  const builtin = new Set(Object.keys(catalog));
+  const screen = {
+    id: 's1', name: 'Lock', components: [
+      { id: 'a', type: 'label', x: 1, y: 2, w: 50, h: 20, locked: true, props: { text: 'A', font: 'Arial', italic: true } },
+      { id: 'b', type: 'label', x: 1, y: 30, w: 50, h: 20, props: { text: 'B' } },
+    ],
+  };
+  const file = JSON.parse(JSON.stringify(exportScreen(screen, { catalog, builtin, size: { width: 240, height: 320 } })));
+  assert.strictEqual(file.components[0].locked, true);
+  assert.strictEqual('locked' in file.components[1], false, 'só guarda quando está bloqueado');
+  const { screen: imported } = importScreen(file, { catalog, userWidgetsDir: tmp(), assetsDir: tmp(), newId });
+  assert.strictEqual(imported.components[0].locked, true);
+  assert.strictEqual(imported.components[1].locked, undefined);
+  assert.deepStrictEqual(imported.components[0].props, { text: 'A', font: 'Arial', italic: true });
+});
+
 test('importar rejeita ficheiros que não são widgets', () => {
   const ctx = { catalog: {}, userWidgetsDir: tmp(), assetsDir: tmp(), newId };
   assert.throws(() => importScreen({ hello: 1 }, ctx), (err) => err.key === 'err.notLcdwidget' && /not a widget file/.test(err.message));

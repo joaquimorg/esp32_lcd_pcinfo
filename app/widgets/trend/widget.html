@@ -1,0 +1,108 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  function draw(p, w, h) {
+    canvas.width = w;
+    canvas.height = h;
+    ctx.clearRect(0, 0, w, h);
+    const family = `"${p.font || 'Segoe UI'}", "Segoe UI", system-ui, sans-serif`;
+    const pad = 4;
+    const label = p.label || (p.sensor ? p.sensor.name : '');
+    const n = Math.max(10, Number(p.points) || 60);
+    const history = p.sensor ? p.sensor.history.slice(-n) : [];
+    const vals = history.filter((v) => v != null);
+
+    // Parte de cima: legenda, seta de tendência e valor; por baixo, o gráfico.
+    const topH = Math.round(h * 0.64);
+    const labelFs = Math.max(9, Math.min(14, Math.round(h * 0.13)));
+    ctx.textBaseline = 'top';
+    ctx.font = `${labelFs}px ${family}`;
+    ctx.fillStyle = p.labelColor;
+    ctx.textAlign = 'left';
+    ctx.fillText(label, pad, pad, w * 0.7);
+
+    // Tendência: valor atual contra a média do primeiro quarto da janela.
+    if (p.showTrend && vals.length >= 8) {
+      const q = vals.slice(0, Math.ceil(vals.length / 4));
+      const ref = q.reduce((a, b) => a + b, 0) / q.length;
+      const range = Math.max(...vals) - Math.min(...vals);
+      const d = vals[vals.length - 1] - ref;
+      const arrow = Math.abs(d) <= range * 0.05 ? '▬' : d > 0 ? '▲' : '▼';
+      ctx.fillStyle = p.color;
+      ctx.textAlign = 'right';
+      ctx.fillText(arrow, w - pad, pad);
+    }
+
+    const unit = p.sensor && p.sensor.unit ? p.sensor.unit : '';
+    const num = Widget.format(p.sensor, p.decimals);
+    let fs = Math.max(10, topH - labelFs - pad * 2);
+    const measure = () => {
+      ctx.font = `600 ${fs}px ${family}`;
+      const a = ctx.measureText(num).width;
+      ctx.font = `${Math.round(fs * 0.45)}px ${family}`;
+      return [a, ctx.measureText(unit).width];
+    };
+    let [nw, uw] = measure();
+    while (fs > 8 && nw + uw + 3 > w - pad * 2) { fs -= 1; [nw, uw] = measure(); }
+    ctx.textBaseline = 'alphabetic';
+    const baseY = topH + pad / 2;
+    ctx.textAlign = 'left';
+    ctx.font = `600 ${fs}px ${family}`;
+    ctx.fillStyle = p.textColor;
+    ctx.fillText(num, pad, baseY);
+    if (unit) {
+      ctx.font = `${Math.round(fs * 0.45)}px ${family}`;
+      ctx.fillStyle = p.labelColor;
+      ctx.fillText(unit, pad + nw + 3, baseY);
+    }
+
+    // Gráfico
+    const gy = topH + 6, gh = h - gy - pad;
+    if (gh < 6 || vals.length < 2) return;
+    let min = Number(p.min), max = Number(p.max);
+    if (p.autoScale) {
+      min = Math.min(...vals);
+      max = Math.max(...vals);
+      const margin = (max - min) * 0.1 || 1;
+      min -= margin;
+      max += margin;
+    }
+    const step = (w - pad * 2) / (n - 1);
+    const pts = history.map((v, i) => [w - pad - (history.length - 1 - i) * step, v]).filter(([, v]) => v != null);
+    const y = (v) => gy + gh - Widget.fraction(v, min, max) * gh;
+    const path = () => { ctx.beginPath(); pts.forEach(([x, v], i) => (i ? ctx.lineTo(x, y(v)) : ctx.moveTo(x, y(v)))); };
+    if (p.fill) {
+      path();
+      ctx.lineTo(pts[pts.length - 1][0], gy + gh);
+      ctx.lineTo(pts[0][0], gy + gh);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, gy, 0, gy + gh);
+      grad.addColorStop(0, p.color + '66');
+      grad.addColorStop(1, p.color + '00');
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+    path();
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  Widget.onUpdate((p, { size }) => draw(p, size.width, size.height));
+</script>
+</body>
+</html>

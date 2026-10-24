@@ -1,0 +1,186 @@
+{
+  "name": "Sensor text",
+  "description": "Text with the sensor value inside, with font choice and a warning colour.",
+  "size": {
+    "w": 200,
+    "h": 30
+  },
+  "properties": [
+    {
+      "key": "sensor",
+      "type": "sensor",
+      "label": "Sensor"
+    },
+    {
+      "key": "template",
+      "type": "text",
+      "label": "Text ({name} {value} {unit} {min} {max})",
+      "default": "{name}: {value}{unit}"
+    },
+    {
+      "key": "decimals",
+      "type": "number",
+      "label": "Decimal places",
+      "default": 0,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "key": "font",
+      "type": "select",
+      "label": "Font",
+      "default": "Segoe UI",
+      "options": [
+        "Segoe UI",
+        "Arial",
+        "Calibri",
+        "Verdana",
+        "Tahoma",
+        "Trebuchet MS",
+        "Consolas",
+        "Courier New",
+        "Times New Roman",
+        "Georgia",
+        "Impact",
+        "Comic Sans MS"
+      ]
+    },
+    {
+      "key": "size",
+      "type": "number",
+      "label": "Size (px, 0 = automatic)",
+      "default": 0,
+      "min": 0,
+      "max": 200
+    },
+    {
+      "key": "weight",
+      "type": "select",
+      "label": "Weight",
+      "default": "400",
+      "options": [
+        "300",
+        "400",
+        "600",
+        "700",
+        "800"
+      ],
+      "optionLabels": {
+        "300": "300 (light)",
+        "400": "400 (normal)",
+        "600": "600 (semibold)",
+        "700": "700 (bold)",
+        "800": "800 (extra bold)"
+      }
+    },
+    {
+      "key": "italic",
+      "type": "boolean",
+      "label": "Italic",
+      "default": false
+    },
+    {
+      "key": "underline",
+      "type": "boolean",
+      "label": "Underline",
+      "default": false
+    },
+    {
+      "key": "align",
+      "type": "select",
+      "label": "Alignment",
+      "default": "left",
+      "options": [
+        "left",
+        "center",
+        "right"
+      ],
+      "optionLabels": {
+        "center": "centre"
+      }
+    },
+    {
+      "key": "color",
+      "type": "color",
+      "label": "Colour",
+      "default": "#ffffff"
+    },
+    {
+      "key": "warnEnabled",
+      "type": "boolean",
+      "label": "Change colour on warning",
+      "default": false
+    },
+    {
+      "key": "warnAbove",
+      "type": "number",
+      "label": "Warn from",
+      "default": 80
+    },
+    {
+      "key": "warnColor",
+      "type": "color",
+      "label": "Warning colour",
+      "default": "#ff5252"
+    }
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Texto com sensor",
+      "description": "Texto com o valor do sensor lá dentro, com escolha de letra e cor de aviso.",
+      "properties": {
+        "sensor": {
+          "label": "Sensor"
+        },
+        "template": {
+          "label": "Texto ({name} {value} {unit} {min} {max})"
+        },
+        "decimals": {
+          "label": "Casas decimais"
+        },
+        "font": {
+          "label": "Tipo de letra"
+        },
+        "size": {
+          "label": "Tamanho (px, 0 = automático)"
+        },
+        "weight": {
+          "label": "Peso",
+          "optionLabels": {
+            "300": "300 (fino)",
+            "400": "400 (normal)",
+            "600": "600 (meio negrito)",
+            "700": "700 (negrito)",
+            "800": "800 (extra negrito)"
+          }
+        },
+        "italic": {
+          "label": "Itálico"
+        },
+        "underline": {
+          "label": "Sublinhado"
+        },
+        "align": {
+          "label": "Alinhamento",
+          "optionLabels": {
+            "left": "esquerda",
+            "center": "centro",
+            "right": "direita"
+          }
+        },
+        "color": {
+          "label": "Cor"
+        },
+        "warnEnabled": {
+          "label": "Mudar de cor em aviso"
+        },
+        "warnAbove": {
+          "label": "Avisar a partir de"
+        },
+        "warnColor": {
+          "label": "Cor de aviso"
+        }
+      }
+    }
+  }
+}

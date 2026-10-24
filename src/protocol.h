@@ -19,6 +19,9 @@
  * Pixels: RGB565 em big-endian (byte alto primeiro), a ordem que o LCD espera,
  * para o ESP32 poder copiar diretamente para o SPI sem trocar bytes.
  *
+ * PKT_RECT_LZ4: bloco LZ4 (formato de bloco, sem cabeçalho) dos w*h pixels em
+ * big-endian, com w*h <= LZ4_MAX_PIXELS.
+ *
  * PKT_RECT_RLE: sequência de tokens sobre os w*h pixels (linha a linha):
  *   c < 0x80  -> c+1 pixels literais seguem (2 bytes cada)
  *   c >= 0x80 -> (c & 0x7F)+1 repetições do pixel seguinte (2 bytes)
@@ -50,7 +53,16 @@ enum PacketType : uint8_t {
                         // guardada na flash, usada pelo ecrã de espera
   PKT_LANG     = 0x08,  // x = idioma do ecrã de espera (LANG_*), sem payload;
                         // guardado na flash
+  PKT_RECT_LZ4 = 0x09,  // payload: bloco LZ4 dos w*h pixels (big-endian);
+                        // w*h <= LZ4_MAX_PIXELS. Só se HELLO.flags tiver HELLO_FLAG_LZ4
 };
+
+// Tamanho do buffer de descompressão do firmware; a app não envia retângulos maiores
+// (LZ4_MAX_PIXELS em app/src/main/protocol.js).
+#define LZ4_MAX_PIXELS 8192
+
+#define HELLO_FLAG_DMA 0x01
+#define HELLO_FLAG_LZ4 0x02
 
 enum LcdLanguage : uint8_t {
   LANG_EN = 0,
@@ -68,7 +80,7 @@ enum ErrorCode : uint8_t {
   ERR_BAD_TYPE    = 1,
   ERR_BAD_RECT    = 2,
   ERR_BAD_LEN     = 3,
-  ERR_RLE_DECODE  = 4,
+  ERR_RLE_DECODE  = 4,    // também usado para LZ4 corrompido
   ERR_RX_TIMEOUT  = 5,
 };
 
@@ -83,7 +95,7 @@ struct PacketHeader {
 struct HelloReply {
   uint8_t  version;
   uint16_t width, height; // tamanho do controlador do LCD
-  uint8_t  flags;         // bit0: DMA ativo
+  uint8_t  flags;         // HELLO_FLAG_*: bit0 DMA ativo, bit1 aceita PKT_RECT_LZ4
   uint16_t vpX, vpY, vpW, vpH;  // v3: área visível guardada (PKT_VIEWPORT)
   uint8_t  resetReason;   // esp_reset_reason() do último arranque
   uint8_t  restartCause;  // RESTART_*: quem pediu o último esp_restart()

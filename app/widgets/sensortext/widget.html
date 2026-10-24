@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body { display: flex; align-items: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  #t { line-height: 1.1; }
+</style>
+</head>
+<body>
+  <div id="t"></div>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const el = document.getElementById('t');
+
+  /** Troca {name}, {value}, {unit}, {min} e {max} pelos dados do sensor. */
+  function expand(template, p) {
+    const s = p.sensor;
+    const fields = {
+      name: s ? s.name : '',
+      value: Widget.format(s, p.decimals),
+      unit: s ? s.unit || '' : '',
+      min: s && s.min != null ? Number(s.min).toFixed(Number(p.decimals) || 0) : '--',
+      max: s && s.max != null ? Number(s.max).toFixed(Number(p.decimals) || 0) : '--',
+    };
+    return String(template ?? '').replace(/\{(name|value|unit|min|max)\}/g, (_, k) => fields[k]);
+  }
+
+  Widget.onUpdate((p, { size }) => {
+    const v = p.sensor ? p.sensor.value : null;
+    const warn = p.warnEnabled && v != null && v >= Number(p.warnAbove);
+    el.textContent = expand(p.template, p);
+    Object.assign(el.style, {
+      fontFamily: `"${p.font || 'Segoe UI'}", "Segoe UI", system-ui, sans-serif`,
+      color: warn ? p.warnColor : p.color,
+      fontWeight: p.weight || '400',
+      fontStyle: p.italic ? 'italic' : 'normal',
+      textDecoration: p.underline ? 'underline' : 'none',
+    });
+    document.body.style.justifyContent = { left: 'flex-start', center: 'center', right: 'flex-end' }[p.align] || 'center';
+
+    // Tamanho 0 = automático: o maior que cabe na altura e na largura.
+    let fs = Number(p.size) > 0 ? Number(p.size) : Math.round(size.height * 0.8);
+    el.style.fontSize = fs + 'px';
+    if (!(Number(p.size) > 0)) while (fs > 6 && el.scrollWidth > size.width) el.style.fontSize = (--fs) + 'px';
+  });
+</script>
+</body>
+</html>

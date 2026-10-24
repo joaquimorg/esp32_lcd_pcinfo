@@ -1,0 +1,231 @@
+{
+  "name": "Sensor list",
+  "description": "Up to 6 rows of caption and value.",
+  "size": {
+    "w": 200,
+    "h": 120
+  },
+  "properties": [
+    {
+      "key": "sensor1",
+      "type": "sensor",
+      "label": "Sensor 1"
+    },
+    {
+      "key": "label1",
+      "type": "text",
+      "label": "Caption 1 (optional)",
+      "default": ""
+    },
+    {
+      "key": "sensor2",
+      "type": "sensor",
+      "label": "Sensor 2"
+    },
+    {
+      "key": "label2",
+      "type": "text",
+      "label": "Caption 2 (optional)",
+      "default": ""
+    },
+    {
+      "key": "sensor3",
+      "type": "sensor",
+      "label": "Sensor 3"
+    },
+    {
+      "key": "label3",
+      "type": "text",
+      "label": "Caption 3 (optional)",
+      "default": ""
+    },
+    {
+      "key": "sensor4",
+      "type": "sensor",
+      "label": "Sensor 4"
+    },
+    {
+      "key": "label4",
+      "type": "text",
+      "label": "Caption 4 (optional)",
+      "default": ""
+    },
+    {
+      "key": "sensor5",
+      "type": "sensor",
+      "label": "Sensor 5"
+    },
+    {
+      "key": "label5",
+      "type": "text",
+      "label": "Caption 5 (optional)",
+      "default": ""
+    },
+    {
+      "key": "sensor6",
+      "type": "sensor",
+      "label": "Sensor 6"
+    },
+    {
+      "key": "label6",
+      "type": "text",
+      "label": "Caption 6 (optional)",
+      "default": ""
+    },
+    {
+      "key": "decimals",
+      "type": "number",
+      "label": "Decimal places",
+      "default": 0,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "key": "font",
+      "type": "select",
+      "label": "Font",
+      "default": "Segoe UI",
+      "options": [
+        "Segoe UI",
+        "Arial",
+        "Calibri",
+        "Verdana",
+        "Tahoma",
+        "Trebuchet MS",
+        "Consolas",
+        "Courier New",
+        "Times New Roman",
+        "Georgia",
+        "Impact",
+        "Comic Sans MS"
+      ]
+    },
+    {
+      "key": "size",
+      "type": "number",
+      "label": "Text size (px, 0 = automatic)",
+      "default": 0,
+      "min": 0,
+      "max": 60
+    },
+    {
+      "key": "weight",
+      "type": "select",
+      "label": "Weight",
+      "default": "600",
+      "options": [
+        "300",
+        "400",
+        "600",
+        "700",
+        "800"
+      ],
+      "optionLabels": {
+        "300": "300 (light)",
+        "400": "400 (normal)",
+        "600": "600 (semibold)",
+        "700": "700 (bold)",
+        "800": "800 (extra bold)"
+      }
+    },
+    {
+      "key": "separators",
+      "type": "boolean",
+      "label": "Row separators",
+      "default": true
+    },
+    {
+      "key": "labelColor",
+      "type": "color",
+      "label": "Caption colour",
+      "default": "#9aa0a6"
+    },
+    {
+      "key": "valueColor",
+      "type": "color",
+      "label": "Value colour",
+      "default": "#ffffff"
+    },
+    {
+      "key": "separatorColor",
+      "type": "color",
+      "label": "Separator colour",
+      "default": "#2d3138"
+    }
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Lista de sensores",
+      "description": "Até 6 linhas com legenda e valor.",
+      "properties": {
+        "sensor1": {
+          "label": "Sensor 1"
+        },
+        "label1": {
+          "label": "Legenda 1 (opcional)"
+        },
+        "sensor2": {
+          "label": "Sensor 2"
+        },
+        "label2": {
+          "label": "Legenda 2 (opcional)"
+        },
+        "sensor3": {
+          "label": "Sensor 3"
+        },
+        "label3": {
+          "label": "Legenda 3 (opcional)"
+        },
+        "sensor4": {
+          "label": "Sensor 4"
+        },
+        "label4": {
+          "label": "Legenda 4 (opcional)"
+        },
+        "sensor5": {
+          "label": "Sensor 5"
+        },
+        "label5": {
+          "label": "Legenda 5 (opcional)"
+        },
+        "sensor6": {
+          "label": "Sensor 6"
+        },
+        "label6": {
+          "label": "Legenda 6 (opcional)"
+        },
+        "decimals": {
+          "label": "Casas decimais"
+        },
+        "font": {
+          "label": "Tipo de letra"
+        },
+        "size": {
+          "label": "Tamanho do texto (px, 0 = automático)"
+        },
+        "weight": {
+          "label": "Peso",
+          "optionLabels": {
+            "300": "300 (fino)",
+            "400": "400 (normal)",
+            "600": "600 (meio negrito)",
+            "700": "700 (negrito)",
+            "800": "800 (extra negrito)"
+          }
+        },
+        "separators": {
+          "label": "Separadores entre linhas"
+        },
+        "labelColor": {
+          "label": "Cor da legenda"
+        },
+        "valueColor": {
+          "label": "Cor do valor"
+        },
+        "separatorColor": {
+          "label": "Cor dos separadores"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  svg { width: 100%; height: 100%; display: block; }
+  text { font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet">
+  <g id="g">
+    <circle id="track" cx="50" cy="50" fill="none"/>
+    <circle id="val" cx="50" cy="50" fill="none" pathLength="100"/>
+  </g>
+  <text id="num" x="50" text-anchor="middle" dominant-baseline="central" font-weight="600"></text>
+  <text id="label" x="50" text-anchor="middle" dominant-baseline="central" fill="#9aa0a6"></text>
+</svg>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const NS = 'http://www.w3.org/2000/svg';
+
+  Widget.onUpdate((p) => {
+    const thick = Math.max(2, Math.min(30, Number(p.thickness) || 12));
+    const r = 49 - thick / 2;
+    const start = Number(p.start) || 0;
+    const rot = `rotate(${start - 90} 50 50)`;
+    $('g').setAttribute('transform', p.clockwise === false ? `translate(100 0) scale(-1 1) ${rot}` : rot);
+
+    for (const el of [$('track'), $('val')]) {
+      el.setAttribute('r', r);
+      el.setAttribute('stroke-width', thick);
+    }
+    $('val').setAttribute('stroke-linecap', p.round ? 'round' : 'butt');
+    $('track').setAttribute('stroke', p.trackColor);
+
+    const v = p.sensor ? p.sensor.value : null;
+    const f = Widget.fraction(v, Number(p.min), Number(p.max));
+    $('val').setAttribute('stroke-dasharray', `${(f * 100).toFixed(2)} 100`);
+    $('val').setAttribute('stroke', Widget.mix(p.color, p.colorHigh, f));
+    $('val').style.opacity = v == null || f <= 0 ? 0 : 1;
+
+    const family = `"${p.font || 'Segoe UI'}", "Segoe UI", system-ui, sans-serif`;
+    const label = p.label || (p.sensor ? p.sensor.name : '');
+    const inner = r - thick / 2;                       // raio livre no interior
+    const numSize = Math.max(8, Math.min(inner * 0.9, 30));
+    for (const el of [$('num'), $('label')]) el.setAttribute('font-family', family);
+
+    $('num').innerHTML = '';
+    $('num').style.display = p.showValue === false ? 'none' : '';
+    $('num').append(Widget.format(p.sensor, p.decimals));
+    const unit = p.sensor ? p.sensor.unit : '';
+    if (unit && p.showUnit !== false) {
+      const u = document.createElementNS(NS, 'tspan');
+      u.setAttribute('font-size', (numSize * 0.45).toFixed(1));
+      u.setAttribute('dx', '1');
+      u.textContent = unit;
+      $('num').append(u);
+    }
+    $('num').setAttribute('fill', p.textColor);
+    $('num').setAttribute('font-size', numSize.toFixed(1));
+    $('num').setAttribute('y', label ? 50 - numSize * 0.12 : 50);
+
+    $('label').textContent = label;
+    $('label').setAttribute('font-size', Math.max(5, Math.min(inner * 0.28, 10)).toFixed(1));
+    $('label').setAttribute('y', 50 + numSize * 0.62);
+    $('label').setAttribute('fill', p.labelColor);
+
+    // Encolhe o valor se não couber no interior do anel.
+    let fs = numSize;
+    while (fs > 6 && $('num').getComputedTextLength() > inner * 1.75) $('num').setAttribute('font-size', (fs -= 0.5).toFixed(1));
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,152 @@
+{
+  "name": "Trend card",
+  "description": "Large value with a trend arrow and a small history graph.",
+  "size": {
+    "w": 150,
+    "h": 90
+  },
+  "properties": [
+    {
+      "key": "sensor",
+      "type": "sensor",
+      "label": "Sensor"
+    },
+    {
+      "key": "label",
+      "type": "text",
+      "label": "Caption",
+      "default": ""
+    },
+    {
+      "key": "decimals",
+      "type": "number",
+      "label": "Decimal places",
+      "default": 0,
+      "min": 0,
+      "max": 3
+    },
+    {
+      "key": "font",
+      "type": "select",
+      "label": "Font",
+      "default": "Segoe UI",
+      "options": [
+        "Segoe UI",
+        "Arial",
+        "Calibri",
+        "Verdana",
+        "Tahoma",
+        "Trebuchet MS",
+        "Consolas",
+        "Courier New",
+        "Times New Roman",
+        "Georgia",
+        "Impact",
+        "Comic Sans MS"
+      ]
+    },
+    {
+      "key": "points",
+      "type": "number",
+      "label": "History points",
+      "default": 60,
+      "min": 10,
+      "max": 600
+    },
+    {
+      "key": "autoScale",
+      "type": "boolean",
+      "label": "Automatic scale",
+      "default": true
+    },
+    {
+      "key": "min",
+      "type": "number",
+      "label": "Minimum",
+      "default": 0
+    },
+    {
+      "key": "max",
+      "type": "number",
+      "label": "Maximum",
+      "default": 100
+    },
+    {
+      "key": "showTrend",
+      "type": "boolean",
+      "label": "Trend arrow",
+      "default": true
+    },
+    {
+      "key": "fill",
+      "type": "boolean",
+      "label": "Fill under the line",
+      "default": true
+    },
+    {
+      "key": "color",
+      "type": "color",
+      "label": "Line colour",
+      "default": "#3aa8ff"
+    },
+    {
+      "key": "textColor",
+      "type": "color",
+      "label": "Value colour",
+      "default": "#ffffff"
+    },
+    {
+      "key": "labelColor",
+      "type": "color",
+      "label": "Caption colour",
+      "default": "#9aa0a6"
+    }
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Cartão de tendência",
+      "description": "Valor grande com seta de tendência e um pequeno gráfico do histórico.",
+      "properties": {
+        "sensor": {
+          "label": "Sensor"
+        },
+        "label": {
+          "label": "Legenda"
+        },
+        "decimals": {
+          "label": "Casas decimais"
+        },
+        "font": {
+          "label": "Tipo de letra"
+        },
+        "points": {
+          "label": "Pontos do histórico"
+        },
+        "autoScale": {
+          "label": "Escala automática"
+        },
+        "min": {
+          "label": "Mínimo"
+        },
+        "max": {
+          "label": "Máximo"
+        },
+        "showTrend": {
+          "label": "Seta de tendência"
+        },
+        "fill": {
+          "label": "Preencher sob a linha"
+        },
+        "color": {
+          "label": "Cor da linha"
+        },
+        "textColor": {
+          "label": "Cor do valor"
+        },
+        "labelColor": {
+          "label": "Cor da legenda"
+        }
+      }
+    }
+  }
+}

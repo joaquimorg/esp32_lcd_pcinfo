@@ -22,6 +22,7 @@ function apply(screen, data) {
     let bytes;
     if (type === P.PKT.RECT_RAW) bytes = payload;
     else if (type === P.PKT.RECT_RLE) bytes = P.rleDecode(payload);
+    else if (type === P.PKT.RECT_LZ4) bytes = P.lz4Decompress(payload, w * h * 2);
     else continue;
     assert.strictEqual(bytes.length, w * h * 2);
     for (let k = 0; k < w * h; k++) {
@@ -124,4 +125,65 @@ test('HELLO diz como o ESP32 está ligado (USB nativo ou UART)', () => {
   p[17] = 1;
   assert.strictEqual(P.parseHello(p).transport, 'uart');
   assert.strictEqual(P.parseHello(p.subarray(0, 17)).transport, 'usb', 'firmware sem o byte de transporte');
+});
+
+test('LZ4: codifica e descodifica sem perdas', () => {
+  const rnd = (n, seed) => Buffer.from(Array.from({ length: n }, (_, i) => ((i + seed) * 2654435761) >>> 24));
+  const cases = [Buffer.alloc(0), Buffer.from([1]), rnd(11, 1), rnd(12, 2), rnd(13, 3), rnd(300, 4),
+    Buffer.alloc(5000, 7), Buffer.from('abcabcabcabcabcabcabcabcabcabc'.repeat(50)), P.toWire(makeFrame(5)).subarray(0, 16384)];
+  for (const src of cases) {
+    const z = P.lz4Compress(src);
+    assert.deepStrictEqual(P.lz4Decompress(z, src.length), src, `tamanho ${src.length}`);
+  }
+  assert.ok(P.lz4Compress(Buffer.alloc(5000, 7)).length < 100, 'dados repetidos comprimem');
+});
+
+test('LZ4: bloco corrompido ou maior que o buffer é rejeitado', () => {
+  const src = Buffer.alloc(1000, 9);
+  const z = P.lz4Compress(src);
+  assert.strictEqual(P.lz4Decompress(z, 999), null, 'não cabe no buffer');
+  assert.strictEqual(P.lz4Decompress(Buffer.from([0x0F, 0x05, 0x00]), 100), null, 'offset antes do início');
+  assert.strictEqual(P.lz4Decompress(Buffer.from([0xF0]), 100), null, 'literais em falta');
+});
+
+test('dirtyRects: um widget no meio do ecrã não arrasta a largura toda', () => {
+  const prev = new Uint16Array(W * H), cur = prev.slice();
+  for (let y = 100; y < 130; y++) for (let x = 80; x < 140; x++) cur[y * W + x] = 1;
+  const rects = P.dirtyRects(prev, cur, W, H);
+  assert.deepStrictEqual([...rects], [[80, 100, 60, 30]]);
+  assert.strictEqual(rects.changedPx, 60 * 30);
+});
+
+test('dirtyRects: zonas separadas dão retângulos separados', () => {
+  const prev = new Uint16Array(W * H), cur = prev.slice();
+  cur[5 * W + 5] = 1;
+  cur[300 * W + 200] = 1;
+  assert.deepStrictEqual([...P.dirtyRects(prev, cur, W, H)], [[5, 5, 1, 1], [200, 300, 1, 1]]);
+});
+
+test('dirtyRects: o ecrã inteiro é cortado em retângulos que cabem no buffer do LZ4', () => {
+  for (const r of P.dirtyRects(null, new Uint16Array(W * H), W, H)) assert.ok(r[2] * r[3] <= P.LZ4_MAX_PIXELS);
+});
+
+test('frames com LZ4: aplicar os pacotes reproduz o frame e comprime mais que o RLE', () => {
+  const screen = new Uint16Array(W * H);
+  let prev = null, withLz4 = 0, without = 0;
+  for (let s = 0; s < 20; s++) {
+    const cur = makeFrame(s);
+    const packets = P.encodeFrame(prev, cur, W, H, 0, 0, { lz4: true });
+    apply(screen, Buffer.concat(packets));
+    assert.deepStrictEqual(screen, cur, `frame ${s}`);
+    withLz4 += packets.reduce((n, p) => n + p.length, 0);
+    without += P.encodeFrame(prev, cur, W, H).reduce((n, p) => n + p.length, 0);
+    prev = cur;
+  }
+  assert.ok(withLz4 <= without, `${withLz4} <= ${without}`);
+});
+
+test('HELLO: bit 1 das flags indica suporte de LZ4', () => {
+  const p = Buffer.alloc(14);
+  p[5] = 2;
+  assert.strictEqual(P.parseHello(p).lz4, true);
+  p[5] = 1;
+  assert.strictEqual(P.parseHello(p).lz4, false);
 });

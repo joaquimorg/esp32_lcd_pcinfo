@@ -577,12 +577,94 @@ static bool handleRle(const PacketHeader& h)
   return true;
 }
 
+/*
+ * LZ4: o retângulo comprimido (<= LZ4_BUF bytes) é lido para lzIn e descomprimido
+ * de uma vez para lzOut, que segue para o LCD. Os pacotes que a app envia já
+ * têm w*h <= LZ4_MAX_PIXELS.
+ */
+#define LZ4_BUF (LZ4_MAX_PIXELS * 2)
+static uint8_t lzIn[LZ4_BUF];
+alignas(4) static uint8_t lzOut[LZ4_BUF];   // alinhado a 4 bytes (pushPixels lê u32)
+
+// Descomprime um bloco LZ4. Devolve o tamanho obtido, ou -1 se o bloco for inválido
+// ou não couber em dstCap. Toda a leitura e escrita é verificada.
+static int lz4Decode(const uint8_t* src, uint32_t srcLen, uint8_t* dst, uint32_t dstCap)
+{
+  const uint8_t* s = src;
+  const uint8_t* const sEnd = src + srcLen;
+  uint8_t* d = dst;
+  uint8_t* const dEnd = dst + dstCap;
+
+  while (s < sEnd) {
+    uint8_t token = *s++;
+    uint32_t lit = token >> 4;
+    if (lit == 15) {
+      uint8_t b;
+      do {
+        if (s >= sEnd) return -1;
+        b = *s++;
+        lit += b;
+      } while (b == 255);
+    }
+    if (lit > (uint32_t)(sEnd - s) || lit > (uint32_t)(dEnd - d)) return -1;
+    memcpy(d, s, lit);
+    d += lit;
+    s += lit;
+    if (s >= sEnd) break;   // a última sequência só tem literais
+
+    if (sEnd - s < 2) return -1;
+    uint32_t off = s[0] | (s[1] << 8);
+    s += 2;
+    if (!off || off > (uint32_t)(d - dst)) return -1;
+
+    uint32_t len = token & 15;
+    if (len == 15) {
+      uint8_t b;
+      do {
+        if (s >= sEnd) return -1;
+        b = *s++;
+        len += b;
+      } while (b == 255);
+    }
+    len += 4;
+    if (len > (uint32_t)(dEnd - d)) return -1;
+    const uint8_t* m = d - off;
+    while (len--) *d++ = *m++;   // byte a byte: o match pode sobrepor-se ao destino
+  }
+  return d - dst;
+}
+
+static bool handleLz4(const PacketHeader& h)
+{
+  uint32_t pixels = (uint32_t)h.w * h.h;
+  if (!rectValid(h) || pixels > LZ4_MAX_PIXELS || h.len > LZ4_BUF) {
+    sendError(!rectValid(h) || pixels > LZ4_MAX_PIXELS ? ERR_BAD_RECT : ERR_BAD_LEN, h.type);
+    skipPayload(h.len);
+    return true;
+  }
+  if (!rxRead(lzIn, h.len)) return false;
+  if (lz4Decode(lzIn, h.len, lzOut, pixels * 2) != (int)(pixels * 2)) {
+    sendError(ERR_RLE_DECODE, h.type);
+    return true;
+  }
+
+  tft.startWrite();
+#if USBD_LCD_DMA
+  tft.dmaWait();
+#endif
+  tft.setAddrWindow(h.x, h.y, h.w, h.h);
+  tft.pushPixels((uint16_t*)lzOut, pixels);
+  tft.endWrite();
+  return true;
+}
+
 static bool handlePacket(const PacketHeader& h)
 {
   switch (h.type) {
     case PKT_HELLO: {
       skipPayload(h.len);
-      HelloReply r = { PROTO_VERSION, (uint16_t)tft.width(), (uint16_t)tft.height(), USBD_LCD_DMA ? 1 : 0,
+      HelloReply r = { PROTO_VERSION, (uint16_t)tft.width(), (uint16_t)tft.height(),
+                       (uint8_t)((USBD_LCD_DMA ? HELLO_FLAG_DMA : 0) | HELLO_FLAG_LZ4),
                        vp.x, vp.y, vp.w, vp.h, bootResetReason, bootRestartCause, lang,
                        (uint8_t)(LCD_TRANSPORT_UART ? TRANSPORT_UART : TRANSPORT_USB_CDC) };
       sendReply(RSP_HELLO, &r, sizeof(r));
@@ -594,6 +676,9 @@ static bool handlePacket(const PacketHeader& h)
 
     case PKT_RECT_RLE:
       return handleRle(h);
+
+    case PKT_RECT_LZ4:
+      return handleLz4(h);
 
     case PKT_FILL: {
       uint8_t c[2];

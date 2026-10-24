@@ -16,9 +16,12 @@
   Widget.onUpdate((p) => {
     el.textContent = p.text;
     Object.assign(el.style, {
+      fontFamily: `"${p.font || 'Segoe UI'}", "Segoe UI", system-ui, sans-serif`,
       fontSize: (Number(p.size) || 20) + 'px',
       color: p.color,
       fontWeight: p.weight,
+      fontStyle: p.italic ? 'italic' : 'normal',
+      textDecoration: p.underline ? 'underline' : 'none',
       textAlign: p.align,
     });
   });
