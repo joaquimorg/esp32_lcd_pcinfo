@@ -1,10 +1,8 @@
 # USB LCD Widgets
 
-<!--
-  PHOTO: put a photo of the real device in docs/images/photo.jpg and remove the
-  comment markers around the next line.
-  <p align="center"><img src="docs/images/photo.jpg" alt="The USB LCD next to the PC" width="480"></p>
--->
+
+  <p align="center"><img src="docs/images/display_240x296.jpg" alt="The USB LCD next to the PC" width="480"></p>
+
 
 Turn a cheap ESP32 board with an SPI LCD into a USB hardware monitor
 for your PC. A Windows app draws HTML widgets (gauges, graphs, clocks, shapes,
