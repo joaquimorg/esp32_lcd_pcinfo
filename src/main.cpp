@@ -19,21 +19,34 @@
  * buffers e pede à task usbd, com usbd_defer_func(), para os tratar.
  *
  * Sem Serial para logs: os erros são reportados ao PC através de RSP_ERROR.
+ *
+ * Placas sem USB nativo (ex: ESP32 CYD 2.8", ver platformio.ini): compila-se com
+ * LCD_TRANSPORT_UART=1 e o mesmo protocolo corre na UART0, ligada ao chip
+ * USB-série da placa, a UART_BAUD. Não há controlo de fluxo: a app só envia um
+ * lote (<= 16 KB) de cada vez e espera pelo ACK, por isso o buffer de receção
+ * (RX_RING_SIZE) nunca enche.
  */
 
 #include <Arduino.h>
 #include <TFT_eSPI.h>
+#include <Preferences.h>
+#include "protocol.h"
+
+#ifndef LCD_TRANSPORT_UART
+#define LCD_TRANSPORT_UART 0
+#endif
+
+#if !LCD_TRANSPORT_UART
 #include "USB.h"
 #include "esp32-hal-tinyusb.h"
 #include "device/usbd_pvt.h"
-#include <Preferences.h>
-#include "protocol.h"
+#endif
 
 #ifndef USBD_LCD_DMA
 #define USBD_LCD_DMA 0
 #endif
 
-#if ARDUINO_USB_CDC_ON_BOOT
+#if ARDUINO_USB_CDC_ON_BOOT && !LCD_TRANSPORT_UART
 #error "este firmware tem de compilar com ARDUINO_USB_CDC_ON_BOOT=0 (ver platformio.ini)"
 #endif
 
@@ -49,7 +62,6 @@
 static TFT_eSPI tft;
 
 static void onIdle();
-static void checkTxStall();
 static void onViewportChanged();
 
 // Área visível do painel (pode ser menor que o controlador, ex: 240x280 com
@@ -113,8 +125,53 @@ static struct {
 } stats;
 
 /* ------------------------------------------------------------------------- */
-/* Receção USB                                                               */
+/* Transporte                                                                */
 /* ------------------------------------------------------------------------- */
+
+#if LCD_TRANSPORT_UART
+
+static uint32_t lastRxMs = 0;   // 0 = ainda não chegou nada
+
+static void transportBegin()
+{
+  Serial.setRxBufferSize(RX_RING_SIZE);   // antes do begin()
+  Serial.begin(UART_BAUD);
+}
+
+// Lê exatamente n bytes. timeoutMs = 0 espera indefinidamente.
+static bool rxRead(void* dst, size_t n, uint32_t timeoutMs = RX_TIMEOUT_MS)
+{
+  uint8_t* out = (uint8_t*)dst;
+  uint32_t lastData = millis();
+
+  while (n) {
+    int avail = Serial.available();
+    if (avail > 0) {
+      size_t k = Serial.readBytes(out, min<size_t>(n, avail));
+      out += k; n -= k;
+      lastData = lastRxMs = millis();
+      continue;
+    }
+
+    uint32_t idle = millis() - lastData;
+    if (timeoutMs && idle > timeoutMs) return false;
+    if (!timeoutMs) onIdle();   // só entre pacotes (à espera de cabeçalho)
+    feedLoopWDT();
+    if (idle > 2) vTaskDelay(1);
+  }
+  return true;
+}
+
+static void txWrite(const void* data, size_t n)
+{
+  Serial.write((const uint8_t*)data, n);
+}
+
+static void kickTx() {}
+
+#else  // USB nativo
+
+static void checkTxStall();
 
 static uint16_t loadCdcDescriptor(uint8_t* dst, uint8_t* itf)
 {
@@ -345,6 +402,8 @@ static void txWrite(const void* data, size_t n)
   }
 }
 
+#endif  // LCD_TRANSPORT_UART
+
 static void sendReply(uint8_t type, const void* payload, uint16_t len)
 {
   uint8_t hdr[5] = { PROTO_MAGIC0, PROTO_MAGIC1, type, (uint8_t)len, (uint8_t)(len >> 8) };
@@ -524,7 +583,8 @@ static bool handlePacket(const PacketHeader& h)
     case PKT_HELLO: {
       skipPayload(h.len);
       HelloReply r = { PROTO_VERSION, (uint16_t)tft.width(), (uint16_t)tft.height(), USBD_LCD_DMA ? 1 : 0,
-                       vp.x, vp.y, vp.w, vp.h, bootResetReason, bootRestartCause, lang };
+                       vp.x, vp.y, vp.w, vp.h, bootResetReason, bootRestartCause, lang,
+                       (uint8_t)(LCD_TRANSPORT_UART ? TRANSPORT_UART : TRANSPORT_USB_CDC) };
       sendReply(RSP_HELLO, &r, sizeof(r));
       return true;
     }
@@ -689,7 +749,12 @@ static void onIdle()
     enterWaiting();
   }
 
+#if LCD_TRANSPORT_UART
+  // Sem USB nativo não se sabe se o cabo está ligado: só se vê se a app fala.
+  uint8_t status = lastRxMs && now - lastRxMs < 2500 ? 2 : 1;
+#else
   uint8_t status = !tud_mounted() ? 0 : !tud_cdc_n_connected(CDC_ITF) ? 1 : 2;
+#endif
   if (status != waitStatus) {
     waitStatus = status;
     drawWaitingStatus(status);
@@ -711,10 +776,14 @@ static void onIdle()
 void setup()
 {
   readRestartCause();
+#if LCD_TRANSPORT_UART
+  transportBegin();
+#else
   // Ver nota no topo: interface CDC própria em vez do Serial.
   tinyusb_enable_interface(USB_INTERFACE_CDC, TUD_CDC_DESC_LEN, loadCdcDescriptor);
   USB.productName("USB Display");
   USB.begin();
+#endif
 
   tft.init();
   tft.setRotation(0);

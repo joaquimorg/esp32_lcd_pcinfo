@@ -116,3 +116,12 @@ test('HELLO v3 traz a área visível guardada no ESP32', () => {
   assert.deepStrictEqual(P.parseHello(p).viewport, { x: 0, y: 20, width: 240, height: 280 });
   assert.strictEqual(P.parseHello(p.subarray(0, 6)).viewport, null, 'firmware v2');
 });
+
+test('HELLO diz como o ESP32 está ligado (USB nativo ou UART)', () => {
+  const p = Buffer.alloc(18);
+  p[0] = 3; p.writeUInt16LE(240, 1); p.writeUInt16LE(320, 3);
+  assert.strictEqual(P.parseHello(p).transport, 'usb');
+  p[17] = 1;
+  assert.strictEqual(P.parseHello(p).transport, 'uart');
+  assert.strictEqual(P.parseHello(p.subarray(0, 17)).transport, 'usb', 'firmware sem o byte de transporte');
+});

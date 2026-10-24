@@ -6,7 +6,7 @@
   <p align="center"><img src="docs/images/photo.jpg" alt="The USB LCD next to the PC" width="480"></p>
 -->
 
-Turn a cheap ESP32-S2 board and a 240×320 SPI LCD into a USB hardware monitor
+Turn a cheap ESP32 board with an SPI LCD into a USB hardware monitor
 for your PC. A Windows app draws HTML widgets (gauges, graphs, clocks, shapes,
 images, animated GIFs…) with live sensor data and streams the pixels to the
 LCD over USB. Only the parts of the screen that change are sent, compressed
@@ -85,12 +85,25 @@ The same app in Portuguese:
 
 ## Hardware
 
-| Part | Used here |
-|---|---|
-| Board | [LOLIN (WEMOS) S2 Mini](https://www.wemos.cc/en/latest/s2/s2_mini.html) (ESP32-S2, native USB) |
-| Display | 240×320 SPI LCD with an ST7789 controller |
+Each board + display is a PlatformIO environment in
+[platformio.ini](platformio.ini); the firmware and the app are the same for all
+of them. The app reads the LCD size from the board, so other resolutions only
+need a new environment.
 
-Wiring (set in [platformio.ini](platformio.ini)):
+| Environment | Board | Display | PC link |
+|---|---|---|---|
+| `lolin_s2_mini` | [LOLIN (WEMOS) S2 Mini](https://www.wemos.cc/en/latest/s2/s2_mini.html) (ESP32-S2) | 240×320 SPI, ST7789 | native USB |
+| `cyd28_ili9341` | ESP32 CYD 2.8" (ESP32-2432S028R) | 240×320, ILI9341 | USB-serial chip (CH340/CP210x), 921600 baud |
+| `cyd28_st7789` | the same CYD, ST7789 variant | 240×320, ST7789 | as above |
+
+If the CYD colours look wrong (blue/red swapped or inverted), try the other
+CYD environment. The CYD's touch screen is not used yet.
+
+To add another board or panel, copy an environment and change the
+[TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) driver, size and pin flags. Add
+`-D LCD_TRANSPORT_UART=1` if the board has no native USB.
+
+### LOLIN S2 Mini wiring
 
 | LCD | ESP32-S2 GPIO |
 |---|---|
@@ -102,17 +115,20 @@ Wiring (set in [platformio.ini](platformio.ini)):
 | RST | 18 |
 | VCC / GND | 3V3 / GND |
 
-The firmware uses the **native USB** of the ESP32-S2. Other ESP32 boards with
-a USB-to-serial chip or USB-Serial-JTAG (ESP32-S3/C3/C6 on their JTAG port)
-will not work without changes. Other panels supported by
-[TFT_eSPI](https://github.com/Bodmer/TFT_eSPI) can be used by changing the
-driver flags in `platformio.ini`.
+The S2 Mini uses its **native USB**. Boards with USB-Serial-JTAG (ESP32-S3/C3/C6
+on their JTAG port) are not supported. Boards with a CH340/CP210x USB-serial
+chip use the UART build (`LCD_TRANSPORT_UART`, 921600 baud) like the CYD; the
+app finds them automatically. Other USB-serial adapters can be picked by hand
+in **Settings → ESP32 connection**.
+
+The CYD has no flow control on the serial link, so it relies on the app sending
+one batch at a time and waiting for the ACK (see [How it works](#how-it-works)).
 
 ## Getting started
 
 ### 1. Flash the firmware
 
-**Prebuilt**: download `usb-lcd-firmware-esp32s2-<version>.bin` from the
+**Prebuilt** (S2 Mini): download `usb-lcd-firmware-esp32s2-<version>.bin` from the
 [latest release](https://github.com/joaquimorg/esp32_lcd_pcinfo/releases/latest).
 Put the board in bootloader mode (hold **0**, press **RST**, release **0**) and
 flash the file at address **0x0**, either from the browser with the
@@ -126,21 +142,25 @@ esptool.py --chip esp32s2 --port COMx write_flash 0x0 usb-lcd-firmware-esp32s2-0
 Press **RST** when it finishes.
 
 **From source**: with [PlatformIO](https://platformio.org/) (VS Code extension
-or CLI):
+or CLI), choosing the environment of your board:
 
 ```
-pio run -t upload
+pio run -e lolin_s2_mini -t upload
+pio run -e cyd28_ili9341 -t upload
 ```
 
-If the board is not detected, put it in bootloader mode as above and upload
+Without `-e`, PlatformIO uses the default environment (`lolin_s2_mini`).
+
+If the S2 Mini is not detected, put it in bootloader mode as above and upload
 again. Once the firmware is running, later uploads work without the buttons.
+The CYD uploads through its USB-serial chip without any button.
 
 After flashing, the LCD shows "Waiting for data from PC" with a status line:
 
 | Status | Meaning |
 |---|---|
-| No USB connection to PC | the cable only gives power, or the PC did not recognise the device |
-| Open the app on the PC | USB is connected, but the app does not have the port open |
+| No USB connection to PC | the cable only gives power, or the PC did not recognise the device (S2 Mini only) |
+| Open the app on the PC | USB is connected, but the app does not have the port open (on the CYD it also shows when the cable is unplugged) |
 | App connected, no data | the app opened the port but is not sending |
 
 ### 2. Install LibreHardwareMonitor (optional, for CPU/GPU sensors)
@@ -292,8 +312,8 @@ restarted.
 
 | Path | Contents |
 |---|---|
-| [src/](src) | ESP32-S2 firmware (`main.cpp`, `protocol.h`) |
-| [platformio.ini](platformio.ini) | Board, LCD driver and pins |
+| [src/](src) | ESP32 firmware (`main.cpp`, `protocol.h`) |
+| [platformio.ini](platformio.ini) | One environment per board/LCD: driver, pins and PC link |
 | [lib/TFT_eSPI](lib/TFT_eSPI) | LCD library |
 | [app/src/main](app/src/main) | App main process: USB link, frame encoding, sensors, settings, widget rotation, `.lcdwidget` files |
 | [app/src/display](app/src/display) | Offscreen page that composes the LCD and runs the transitions |

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+**More boards and displays**
+- Firmware builds per board in `platformio.ini`: `lolin_s2_mini` (unchanged),
+  `cyd28_ili9341` and `cyd28_st7789` for the ESP32 CYD 2.8" (240×320).
+- New UART transport for boards without native USB (CH340/CP210x), 921600 baud,
+  selected with `LCD_TRANSPORT_UART=1`. The HELLO reply now says which
+  transport the board uses.
+- The app finds CH340/CH9102/CP210x ports automatically, keeps DTR/RTS low
+  while opening them (so the board does not reset) and restarts a stuck board
+  with an RTS pulse.
+- The CYD touch screen is not used yet.
+
 ## 0.7.0
 
 **Languages**

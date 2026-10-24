@@ -235,6 +235,8 @@ function parseHello(p) {
     reset: p.length >= 16 ? { reason: p[14], cause: p[15] } : null,
     // Idioma do ecrã de espera guardado no ESP32 (LANG_*), ou null em firmwares antigos.
     lang: p.length >= 17 ? p[16] : null,
+    // Como o ESP32 está ligado ao PC (TRANSPORT_*); firmwares antigos usam o USB nativo.
+    transport: p.length >= 18 && p[17] === 1 ? 'uart' : 'usb',
   };
 }
 

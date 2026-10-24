@@ -39,6 +39,8 @@ PKT_HELLO, PKT_RECT_RAW, PKT_RECT_RLE, PKT_FILL, PKT_SYNC, PKT_SINK = 1, 2, 3, 4
 RSP_HELLO, RSP_ACK, RSP_ERROR = 0x81, 0x85, 0x8E
 ERROR_NAMES = {1: "BAD_TYPE", 2: "BAD_RECT", 3: "BAD_LEN", 4: "RLE_DECODE", 5: "RX_TIMEOUT"}
 ESPRESSIF_VID = 0x303A
+UART_VIDS = (0x1A86, 0x10C4)   # CH340/CH9102 e CP210x: placas sem USB nativo (ex: CYD)
+UART_BAUD = 921600            # igual a UART_BAUD em src/protocol.h
 
 
 def packet(ptype, x=0, y=0, w=0, h=0, payload=b""):
@@ -47,7 +49,11 @@ def packet(ptype, x=0, y=0, w=0, h=0, payload=b""):
 
 class Device:
     def __init__(self, port):
-        self.ser = serial.Serial(port, 115200, timeout=2, write_timeout=10)
+        self.ser = serial.Serial(port, UART_BAUD, timeout=2, write_timeout=10)
+        if any(p.device == port and p.vid != ESPRESSIF_VID for p in list_ports.comports()):
+            # Chip USB-série: o DTR/RTS reiniciam a placa. Larga-os e deixa-a arrancar.
+            self.ser.dtr = self.ser.rts = False
+            time.sleep(1.5)
         self.ser.reset_input_buffer()
         self.seq = 0
         self.pending = collections.deque()
@@ -106,12 +112,12 @@ class Device:
 
 
 def find_port():
-    ports = [p for p in list_ports.comports() if p.vid == ESPRESSIF_VID]
+    ports = [p for p in list_ports.comports() if p.vid == ESPRESSIF_VID or p.vid in UART_VIDS]
     if len(ports) == 1:
         return ports[0].device
     if not ports:
         sys.exit("ESP32 não encontrado. Indica a porta com --port COMx")
-    sys.exit("Vários dispositivos Espressif: " + ", ".join(p.device for p in ports) + ". Usa --port")
+    sys.exit("Vários dispositivos possíveis: " + ", ".join(p.device for p in ports) + ". Usa --port")
 
 
 # --- Pixels e compressão ---------------------------------------------------

@@ -9,6 +9,14 @@ const ESPRESSIF_VID = '303a';
 // 0x1001 = USB-Serial-JTAG (S3/C3/C6...) — abrir a porta mexe no DTR/RTS e pode
 // reiniciar essa placa; 0x0002 = bootloader da ROM.
 const SKIP_PIDS = new Set(['1001', '0002']);
+// Placas sem USB nativo (ex: ESP32 CYD) falam por um chip USB-série. Na procura
+// automática só se experimentam os usados nessas placas; abrir uma porta de outro
+// adaptador (Arduino, impressora…) pode reiniciá-lo. Resto: escolha manual.
+const UART_AUTO_VIDS = new Set(['1a86', '10c4']);   // WCH CH340/CH9102, Silicon Labs CP210x
+const UART_BAUD = 921600;       // tem de coincidir com UART_BAUD em src/protocol.h
+const UART_BOOT_WAIT_MS = 1500; // abrir a porta pode reiniciar a placa (DTR/RTS): espera que arranque
+const UART_HELLO_TRIES = 3;
+const UART_RESTART_WAIT_MS = 3000;
 const PORT_OP_TIMEOUT_MS = 3000;   // abrir/fechar uma porta USB pode bloquear se o dispositivo estiver a desaparecer
 const RETRY_MS = 2000;
 const HELLO_TIMEOUT_MS = 1500;
@@ -49,6 +57,10 @@ class Device extends EventEmitter {
     this.seq = 0;
     this.lastAckAt = 0;
     this.helloFails = new Map();   // porta -> HELLOs falhados seguidos
+    // Portas USB-série que não responderam em modo automático: provavelmente são
+    // de outro aparelho (Arduino, outra placa…), por isso não se voltam a abrir
+    // (reiniciaria esse aparelho) até serem desligadas.
+    this.notLcd = new Set();
     this.stopped = false;
   }
 
@@ -134,14 +146,29 @@ class Device extends EventEmitter {
     }
   }
 
+  /** Portas a experimentar: [{ path, uart }]; uart = chip USB-série em vez de USB nativo. */
   async _candidates() {
-    if (this.portSetting && this.portSetting !== 'auto') return [this.portSetting];
-    const ports = (await withTimeout(SerialPort.list(), PORT_OP_TIMEOUT_MS, 'listar portas'))
-      .filter((p) => (p.vendorId || '').toLowerCase() === ESPRESSIF_VID)
-      .filter((p) => !SKIP_PIDS.has((p.productId || '').toLowerCase().padStart(4, '0')))
-      .map((p) => p.path);
-    // A última porta que respondeu primeiro.
-    ports.sort((a, b) => (b === this.lastPort) - (a === this.lastPort));
+    const manual = this.portSetting && this.portSetting !== 'auto';
+    let list = [];
+    try {
+      list = await withTimeout(SerialPort.list(), PORT_OP_TIMEOUT_MS, 'listar portas');
+    } catch (err) {
+      if (!manual) throw err;
+    }
+    if (manual) {
+      const p = list.find((x) => x.path === this.portSetting);
+      return [{ path: this.portSetting, uart: !!p && isUartPort(p) }];
+    }
+    for (const path of this.notLcd) {
+      if (!list.some((p) => p.path === path)) this.notLcd.delete(path);
+    }
+    const ports = list
+      .filter(isAutoCandidate)
+      .map((p) => ({ path: p.path, uart: isUartPort(p) }))
+      .filter((p) => !this.notLcd.has(p.path));
+    // A última porta que respondeu primeiro, depois o USB nativo.
+    const rank = (p) => (p.path === this.lastPort ? 0 : p.uart ? 2 : 1);
+    ports.sort((a, b) => rank(a) - rank(b));
     return ports;
   }
 
@@ -151,9 +178,9 @@ class Device extends EventEmitter {
   }
 
   async _connect() {
-    for (const path of await this._candidates()) {
+    for (const { path, uart } of await this._candidates()) {
       if (this.stopped) return;
-      const port = new SerialPort({ path, baudRate: 115200, autoOpen: false });
+      const port = new SerialPort({ path, baudRate: UART_BAUD, autoOpen: false });
       port.on('error', () => {});
       try {
         await openPort(port);
@@ -162,7 +189,11 @@ class Device extends EventEmitter {
       }
       this._attach(port);
       try {
-        const hello = await this._hello();
+        if (uart) {
+          await releaseResetLines(port);
+          this.parser = new P.ReplyParser();   // descarta o que o arranque da placa escreveu
+        }
+        const hello = await this._hello(uart ? UART_HELLO_TRIES : 1);
         this.info = { ...hello, path };
         this.lastPort = path;
         this.lastAckAt = Date.now();
@@ -172,11 +203,12 @@ class Device extends EventEmitter {
       } catch {
         this._detach();
         await closePort(port);
+        if (uart && this.portSetting === 'auto' && path !== this.lastPort) this.notLcd.add(path);
         if (this._isOurPort(path)) {
           const fails = (this.helloFails.get(path) || 0) + 1;
           this.helloFails.set(path, fails);
           if (fails >= HELLO_FAILS_TO_RESTART) {
-            await this._requestRestart(path, 'não responde ao HELLO');
+            await this._requestRestart(path, 'não responde ao HELLO', uart);
             return;
           }
         }
@@ -187,26 +219,39 @@ class Device extends EventEmitter {
   /** Fecha a ligação atual e reinicia o ESP32. */
   async _recover(path, reason) {
     const port = this.port;
+    const uart = this.info?.transport === 'uart';
     const wasReady = this.ready;
     this._detach();
     if (wasReady) this.emit('disconnected');
     if (port) await closePort(port);
-    if (path) await this._requestRestart(path, reason);
+    if (path) await this._requestRestart(path, reason, uart);
   }
 
-  async _requestRestart(path, reason) {
+  /**
+   * USB nativo: abrir a porta a 2400 baud e baixar o DTR (o firmware vê-o).
+   * UART: o firmware não vê a velocidade; pulsa-se o RTS, que nas placas com
+   * chip USB-série está ligado ao EN (reset).
+   */
+  async _requestRestart(path, reason, uart = false) {
     this.emit('log', `${path} ${reason}: a reiniciar o ESP32`);
     this.helloFails.delete(path);
-    const port = new SerialPort({ path, baudRate: RESTART_BAUD, autoOpen: false });
+    const port = new SerialPort({ path, baudRate: uart ? UART_BAUD : RESTART_BAUD, autoOpen: false });
     port.on('error', () => {});
+    const set = (opts) => withTimeout(new Promise((r) => port.set(opts, () => r())), PORT_OP_TIMEOUT_MS, 'DTR/RTS');
     try {
       await openPort(port);
-      await withTimeout(new Promise((r) => port.set({ dtr: false }, () => r())), PORT_OP_TIMEOUT_MS, 'DTR');
+      if (uart) {
+        await set({ dtr: false, rts: true });
+        await sleep(100);
+        await set({ dtr: false, rts: false });
+      } else {
+        await set({ dtr: false });
+      }
       await closePort(port);
     } catch (err) {
       this.emit('log', `pedido de reinício falhou: ${err.message}`);
     }
-    await sleep(RESTART_WAIT_MS);
+    await sleep(uart ? UART_RESTART_WAIT_MS : RESTART_WAIT_MS);
   }
 
   _attach(port) {
@@ -239,7 +284,17 @@ class Device extends EventEmitter {
     if (wasReady) this.emit('disconnected');
   }
 
-  _hello() {
+  async _hello(tries = 1) {
+    for (let i = 1; ; i++) {
+      try {
+        return await this._helloOnce();
+      } catch (err) {
+        if (i >= tries || !this.port) throw err;
+      }
+    }
+  }
+
+  _helloOnce() {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.helloWaiter = null;
@@ -272,6 +327,29 @@ class Device extends EventEmitter {
 // Adaptadores USB-série comuns (placas ESP32 sem USB nativo, Arduinos, ...).
 const USB_UART_VIDS = { '10c4': 'Silicon Labs CP210x', '1a86': 'WCH CH340/CH9102', '0403': 'FTDI', '067b': 'Prolific PL2303' };
 
+/** Porta de um chip USB-série (placa sem USB nativo) em vez do USB nativo do ESP32-S2. */
+function isUartPort(p) {
+  const vid = (p.vendorId || '').toLowerCase();
+  return !!vid && vid !== ESPRESSIF_VID;
+}
+
+/** Portas onde a procura automática experimenta o HELLO. */
+function isAutoCandidate(p) {
+  const vid = (p.vendorId || '').toLowerCase();
+  const pid = (p.productId || '').toLowerCase().padStart(4, '0');
+  if (vid === ESPRESSIF_VID) return !SKIP_PIDS.has(pid);
+  return UART_AUTO_VIDS.has(vid);
+}
+
+/**
+ * Abrir a porta aciona o DTR/RTS, que no chip USB-série da placa reiniciam o
+ * ESP32 ou o põem no bootloader. Larga ambos e deixa-o arrancar.
+ */
+async function releaseResetLines(port) {
+  await withTimeout(new Promise((r) => port.set({ dtr: false, rts: false }, () => r())), PORT_OP_TIMEOUT_MS, 'DTR/RTS');
+  await sleep(UART_BOOT_WAIT_MS);
+}
+
 /**
  * Classifica uma porta para a lista de escolha na app. kind é um código
  * (jtag, boot, native, uart, system, other) que a janela traduz; short é o
@@ -285,7 +363,10 @@ function describePort(p) {
   if (vid === ESPRESSIF_VID && pid === '1001') [kind, short] = ['jtag', 'Espressif JTAG'];
   else if (vid === ESPRESSIF_VID && pid === '0002') [kind, short] = ['boot', 'bootloader'];
   else if (vid === ESPRESSIF_VID) { [kind, short] = ['native', 'ESP32-S2']; usable = true; }
-  else if (USB_UART_VIDS[vid]) [kind, short, uart] = ['uart', USB_UART_VIDS[vid], USB_UART_VIDS[vid]];
+  else if (USB_UART_VIDS[vid]) {
+    [kind, short, uart] = ['uart', USB_UART_VIDS[vid], USB_UART_VIDS[vid]];
+    usable = UART_AUTO_VIDS.has(vid);
+  }
   else if (!vid) kind = 'system';
   else kind = 'other';
   return {
@@ -337,4 +418,4 @@ function closePort(port) {
   return withTimeout(closed, PORT_OP_TIMEOUT_MS, `fechar ${port.path}`).catch(() => {});
 }
 
-module.exports = { Device, listPorts, describePort };
+module.exports = { Device, listPorts, describePort, isAutoCandidate, isUartPort };

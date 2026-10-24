@@ -34,6 +34,11 @@
 #define PROTO_MAGIC0  0xA5
 #define PROTO_MAGIC1  0x5A
 
+// Velocidade da UART nas placas sem USB nativo (LCD_TRANSPORT_UART). A app não a
+// pode saber pelo HELLO (ainda não há ligação), por isso tem de ficar igual em
+// app/src/main/device.js (UART_BAUD) e tools/usb_display_bench.py.
+#define UART_BAUD     921600
+
 enum PacketType : uint8_t {
   PKT_HELLO    = 0x01,  // sem payload -> RSP_HELLO
   PKT_RECT_RAW = 0x02,  // payload: w*h*2 bytes
@@ -83,6 +88,12 @@ struct HelloReply {
   uint8_t  resetReason;   // esp_reset_reason() do último arranque
   uint8_t  restartCause;  // RESTART_*: quem pediu o último esp_restart()
   uint8_t  lang;          // LANG_*: idioma do ecrã de espera (PKT_LANG)
+  uint8_t  transport;     // TRANSPORT_*: como o ESP32 está ligado ao PC
+};
+
+enum Transport : uint8_t {
+  TRANSPORT_USB_CDC = 0,  // USB nativo (ESP32-S2)
+  TRANSPORT_UART    = 1,  // chip USB-série (CH340/CP210x), a UART_BAUD
 };
 
 enum RestartCause : uint8_t {
