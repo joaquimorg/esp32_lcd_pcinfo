@@ -54,6 +54,9 @@ function defaultConfig() {
     // Ampliação dos ecrãs quando o LCD não tem o tamanho do desenho (src/scaling.js):
     // 'auto' | 'fit' | 'fill' | 'off'. Fora de "display" para não o tornar manual.
     scaleMode: 'auto',
+    // Fluidez das animações: 'quality' | 'balanced' | 'smooth' (perde bits de cor nas imagens
+    // muito diferentes da anterior para mandar menos bytes; ver frame-sender.js).
+    animQuality: 'quality',
     screens: [
       monitor('CPU', 'Ryzen 5', '/amdcpu/0/temperature/2', '/amdcpu/0/load/0', '/amdcpu/0/power/0'),
       monitor('GPU', 'RX 580', '/gpu-amd/0/temperature/0', '/gpu-amd/0/load/0', '/gpu-amd/0/power/3'),

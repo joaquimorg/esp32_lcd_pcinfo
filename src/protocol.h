@@ -61,8 +61,19 @@ enum PacketType : uint8_t {
 // (LZ4_MAX_PIXELS em app/src/main/protocol.js).
 #define LZ4_MAX_PIXELS 8192
 
-#define HELLO_FLAG_DMA 0x01
-#define HELLO_FLAG_LZ4 0x02
+#define HELLO_FLAG_DMA      0x01
+#define HELLO_FLAG_LZ4      0x02
+#define HELLO_FLAG_BUFFERED 0x04   // tem framebuffer: mostra cada frame de uma vez (ver SYNC_HOLD)
+#define HELLO_FLAG_UPSCALE  0x08   // aceita RECT_FLAG_2X (precisa do framebuffer)
+
+// PacketHeader.flags de PKT_RECT_LZ4: os pixels são metade da largura e da altura de
+// (w, h) e o ESP32 duplica-os em blocos 2x2 (x, y, w, h pares). Para animações.
+#define RECT_FLAG_2X 0x01
+
+// PacketHeader.flags do PKT_SYNC: ainda há lotes do mesmo frame. Com framebuffer o
+// LCD só é atualizado no SYNC sem este bit, para o frame aparecer de uma vez; sem
+// framebuffer (ou com uma app antiga, que nunca o ativa) cada SYNC mostra o que veio.
+#define SYNC_HOLD 0x01
 
 enum LcdLanguage : uint8_t {
   LANG_EN = 0,

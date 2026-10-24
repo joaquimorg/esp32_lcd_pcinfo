@@ -107,7 +107,11 @@ function createDisplayWindow() {
   displayWin.loadFile(DISPLAY_HTML);
 }
 
+const paintStats = { paints: 0, convertMs: 0, previewMs: 0 };   // LCD_DEBUG
+
 function onPaint(image) {
+  const t0 = process.hrtime.bigint();
+  paintStats.paints++;
   const { width, height } = renderGeom;
   const s = image.getSize();
   if (s.width !== width || s.height !== height) {
@@ -117,11 +121,16 @@ function onPaint(image) {
   lastFrameImage = image;
   const frame = P.bgraToRgb565(image.toBitmap(), new Uint16Array(width * height));
   sender.submit(frame);
+  paintStats.convertMs += Number(process.hrtime.bigint() - t0) / 1e6;
 
   const now = Date.now();
   if (controlWin && controlWin.isVisible() && now - lastPreview >= PREVIEW_INTERVAL_MS) {
     lastPreview = now;
-    controlWin.webContents.send('preview', image.toDataURL());
+    const t1 = process.hrtime.bigint();
+    // JPEG em vez de PNG: codifica-se em poucos ms (o PNG de 410x502 levava ~40 ms, 10 vezes por
+    // segundo, no mesmo fio que trata dos ACKs e do envio, e atrasava as animações).
+    controlWin.webContents.send('preview', 'data:image/jpeg;base64,' + image.toJPEG(80).toString('base64'));
+    paintStats.previewMs += Number(process.hrtime.bigint() - t1) / 1e6;
   }
 }
 
@@ -332,7 +341,10 @@ setInterval(() => {
     // Por formato (KB), retângulos e pixels enviados / pixels que mudaram de facto.
     console.log(`[rate] ${c.frames} fps, ${kb(c.bytes)} KB/s`
       + ` (raw ${kb(c.byType.raw)}, rle ${kb(c.byType.rle)}, lz4 ${kb(c.byType.lz4)}, fill ${kb(c.byType.fill)})`
-      + `, ${c.rects} rects, ${c.sentPx}/${c.changedPx} px enviados/alterados`);
+      + `, ${c.rects} rects, ${c.sentPx}/${c.changedPx} px enviados/alterados`
+      + `, codificar ${c.encodeMs.toFixed(0)} ms, cabo parado ${c.idleMs.toFixed(0)} ms`
+      + ` | paints ${paintStats.paints}, converter+enviar ${paintStats.convertMs.toFixed(0)} ms, pré-visualização ${paintStats.previewMs.toFixed(0)} ms`);
+    paintStats.paints = 0; paintStats.convertMs = 0; paintStats.previewMs = 0;
   }
   sendStatus();
 }, 1000);
@@ -433,6 +445,7 @@ function applyConfig(next) {
   const prev = config;
   config = next;
   store.save(config);
+  sender.setQuality(config.animQuality);
   if (displayWin && prev.frameRate !== config.frameRate) displayWin.webContents.setFrameRate(config.frameRate);
   if (prev.lhmUrl !== config.lhmUrl || prev.sensorIntervalMs !== config.sensorIntervalMs || prev.language !== config.language) {
     sensors.configure({ lhmUrl: config.lhmUrl, intervalMs: config.sensorIntervalMs, language: config.language });
@@ -674,6 +687,7 @@ app.whenReady().then(() => {
   size = { width: vp.width, height: vp.height };
   renderGeom = vp;
   sender.setGeometry(renderGeom, controller);
+  sender.setQuality(config.animQuality);
   stampDesign();
 
   ensureUserWidgetsDir(userWidgetsDir, BUILTIN_WIDGETS);

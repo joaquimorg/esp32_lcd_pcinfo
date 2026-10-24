@@ -115,10 +115,10 @@ class Device extends EventEmitter {
   }
 
   /** Envia os pacotes de um frame seguidos de SYNC; o ACK liberta o próximo. */
-  sendFrame(packets) {
+  sendFrame(packets, { hold = false } = {}) {
     if (!this.canSend()) return false;
     this.seq = (this.seq + 1) >>> 0;
-    const data = Buffer.concat([...packets, P.syncPacket(this.seq)]);
+    const data = Buffer.concat([...packets, P.syncPacket(this.seq, hold)]);
     this.inFlight.push({ seq: this.seq, time: Date.now() });
     this.port.write(data);
     return true;

@@ -641,9 +641,12 @@ static int lz4Decode(const uint8_t* src, uint32_t srcLen, uint8_t* dst, uint32_t
 
 static bool handleLz4(const PacketHeader& h)
 {
-  uint32_t pixels = (uint32_t)h.w * h.h;
-  if (!rectValid(h) || pixels > LZ4_MAX_PIXELS || h.len > LZ4_BUF) {
-    sendError(!rectValid(h) || pixels > LZ4_MAX_PIXELS ? ERR_BAD_RECT : ERR_BAD_LEN, h.type);
+  // RECT_FLAG_2X: os pixels do pacote são metade da largura e da altura (ver protocol.h).
+  const bool x2 = (h.flags & RECT_FLAG_2X) != 0;
+  const bool x2Ok = !x2 || (lcdBuffered(tft) && !((h.x | h.y | h.w | h.h) & 1));
+  uint32_t pixels = x2 ? (uint32_t)(h.w / 2) * (h.h / 2) : (uint32_t)h.w * h.h;
+  if (!x2Ok || !rectValid(h) || pixels > LZ4_MAX_PIXELS || h.len > LZ4_BUF) {
+    sendError(!x2Ok || !rectValid(h) || pixels > LZ4_MAX_PIXELS ? ERR_BAD_RECT : ERR_BAD_LEN, h.type);
     skipPayload(h.len);
     return true;
   }
@@ -658,7 +661,8 @@ static bool handleLz4(const PacketHeader& h)
   tft.dmaWait();
 #endif
   tft.setAddrWindow(h.x, h.y, h.w, h.h);
-  tft.pushPixels((uint16_t*)lzOut, pixels);
+  if (x2) lcdPushPixels2x(tft, (uint16_t*)lzOut, h.w / 2, h.h / 2);
+  else tft.pushPixels((uint16_t*)lzOut, pixels);
   tft.endWrite();
   return true;
 }
@@ -669,7 +673,7 @@ static bool handlePacket(const PacketHeader& h)
     case PKT_HELLO: {
       skipPayload(h.len);
       HelloReply r = { PROTO_VERSION, (uint16_t)tft.width(), (uint16_t)tft.height(),
-                       (uint8_t)((USBD_LCD_DMA ? HELLO_FLAG_DMA : 0) | HELLO_FLAG_LZ4),
+                       (uint8_t)((USBD_LCD_DMA ? HELLO_FLAG_DMA : 0) | HELLO_FLAG_LZ4 | (lcdBuffered(tft) ? HELLO_FLAG_BUFFERED | HELLO_FLAG_UPSCALE : 0)),
                        vp.x, vp.y, vp.w, vp.h, bootResetReason, bootRestartCause, lang,
                        (uint8_t)(LCD_TRANSPORT_UART ? TRANSPORT_UART : TRANSPORT_USB_CDC), LCD_ALIGN };
       sendReply(RSP_HELLO, &r, sizeof(r));
@@ -711,6 +715,8 @@ static bool handlePacket(const PacketHeader& h)
       r.resyncBytes = stats.resyncBytes;
       r.screenEpoch = screenEpoch;
       sendReply(RSP_ACK, &r, sizeof(r));
+      // Primeiro o ACK (a app já pode mandar o lote seguinte); depois mostra o frame.
+      if (!(h.flags & SYNC_HOLD)) lcdCommit(tft);
       return true;
     }
 
@@ -837,6 +843,7 @@ static void onViewportChanged()
 static void onIdle()
 {
   uint32_t now = millis();
+  lcdFlushStale(tft, now);   // a app morreu a meio de um frame: mostra o que chegou
   if (!waiting) {
     if (now - lastPacketMs < IDLE_TIMEOUT_MS) return;
     enterWaiting();

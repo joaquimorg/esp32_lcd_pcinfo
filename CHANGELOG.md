@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.12.0
+
+**Faster and smoother animations (GIFs)**
+- The preview in the app window was encoded as PNG about 10 times a second on
+  the same thread that sends frames and handles replies; it now uses JPEG
+  (about 40× less time). On its own this lifted the USB link from ~340 to its
+  ~495 KB/s ceiling.
+- **Settings → LCD screen → Animation smoothness**: *Full quality* (as before),
+  *Balanced* (areas that move a lot are sent at half the resolution and the
+  board doubles the pixels: 4× less data) and *Smoothest* (also fewer colour
+  bits while moving). Everything returns to full quality about 0.8 s after the
+  motion stops. Measured on the AMOLED with a dense full-screen 25 fps GIF:
+  3–4 fps (full), 9 fps (balanced), 17–18 fps (smoothest). Needs the new
+  firmware; with an older one the setting only drops colour bits.
+- **No more visible refresh sweep (AMOLED)**: the board keeps a framebuffer in
+  its PSRAM and shows each frame at once, after its last batch (`SYNC_HOLD`).
+  Older firmware or app versions still work: they show each batch as it arrives.
+- The next frame is encoded while the previous one is on the wire.
+- `LCD_DEBUG=1` also shows paint counts, encode time, idle time on the cable and
+  preview time.
+
 ## 0.11.1
 
 **Fixes**

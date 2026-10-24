@@ -40,6 +40,11 @@ Created by [joaquim.org](https://joaquim.org) · [MIT License](LICENSE)
 - **Zoom to the LCD**: a widget designed for one size is zoomed to fill another
   LCD (Fit, Fill or Automatic) without distorting text or shapes, so the same
   widgets work on boards with different resolutions.
+- **Smooth animations**: GIFs and transitions are limited by the USB speed
+  (about 0.5 MB/s), so *Settings → Animation smoothness* can send moving areas
+  at half the resolution (the board doubles the pixels) and bring back full
+  quality when they stop. The AMOLED board also shows each frame at once, with
+  no visible refresh.
 - **Several widgets** that rotate on the LCD, each for its own time, with
   **transitions**: fade, slide and push (4 directions), zoom, wipe, circle or
   random.
@@ -151,7 +156,7 @@ flash the file at address **0x0**, either from the browser with the
 esptool:
 
 ```
-esptool.py --chip esp32s2 --port COMx write_flash 0x0 usb-lcd-firmware-esp32s2-0.11.1.bin
+esptool.py --chip esp32s2 --port COMx write_flash 0x0 usb-lcd-firmware-esp32s2-0.12.0.bin
 ```
 
 Press **RST** when it finishes.

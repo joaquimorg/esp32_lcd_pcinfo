@@ -11,13 +11,13 @@ const PKT = { HELLO: 0x01, RECT_RAW: 0x02, RECT_RLE: 0x03, FILL: 0x04, SYNC: 0x0
 const RSP = { HELLO: 0x81, ACK: 0x85, ERROR: 0x8E };
 const ERROR_NAMES = { 1: 'BAD_TYPE', 2: 'BAD_RECT', 3: 'BAD_LEN', 4: 'RLE_DECODE', 5: 'RX_TIMEOUT' };
 
-function packet(type, x = 0, y = 0, w = 0, h = 0, payload = null) {
+function packet(type, x = 0, y = 0, w = 0, h = 0, payload = null, flags = 0) {
   const len = payload ? payload.length : 0;
   const buf = Buffer.allocUnsafe(HEADER_SIZE + len);
   buf[0] = MAGIC0;
   buf[1] = MAGIC1;
   buf[2] = type;
-  buf[3] = 0;
+  buf[3] = flags;
   buf.writeUInt16LE(x, 4);
   buf.writeUInt16LE(y, 6);
   buf.writeUInt16LE(w, 8);
@@ -27,10 +27,18 @@ function packet(type, x = 0, y = 0, w = 0, h = 0, payload = null) {
   return buf;
 }
 
-function syncPacket(seq) {
+// flags de PKT_RECT_LZ4: os pixels do pacote são metade da largura e da altura e o
+// ESP32 duplica-os (blocos 2x2); x, y, w, h têm de ser pares. Só com HELLO.upscale.
+const RECT_FLAG_2X = 0x01;
+const SYNC_HOLD = 0x01;   // flags do SYNC: ainda há lotes deste frame; o LCD só o mostra no último
+
+/** hold = há mais lotes deste frame a seguir: o ESP32 com framebuffer espera para mostrar tudo de uma vez. */
+function syncPacket(seq, hold = false) {
   const p = Buffer.allocUnsafe(4);
   p.writeUInt32LE(seq >>> 0, 0);
-  return packet(PKT.SYNC, 0, 0, 0, 0, p);
+  const buf = packet(PKT.SYNC, 0, 0, 0, 0, p);
+  if (hold) buf[3] = SYNC_HOLD;
+  return buf;
 }
 
 /** Bitmap BGRA (nativeImage.toBitmap no Windows) -> RGB565 */
@@ -233,8 +241,8 @@ const MERGE_GAP = 1;   // tiles limpos que ainda se juntam a dois alterados vizi
  * Parte um retângulo em faixas de até LZ4_MAX_PIXELS pixels. Com align > 1 as
  * faixas têm um número de linhas múltiplo de align.
  */
-function splitRect([x, y, w, h], align = 1) {
-  let rows = Math.max(1, Math.floor(LZ4_MAX_PIXELS / w));
+function splitRect([x, y, w, h], align = 1, maxPixels = LZ4_MAX_PIXELS) {
+  let rows = Math.max(1, Math.floor(maxPixels / w));
   if (align > 1) rows = Math.max(align, rows - (rows % align));
   const out = [];
   for (let y0 = 0; y0 < h; y0 += rows) out.push([x, y + y0, w, Math.min(rows, h - y0)]);
@@ -271,10 +279,10 @@ function alignViewport(vp, align = 1) {
  * não arrasta a largura toda. Sem frame anterior devolve o ecrã inteiro.
  * O array traz changedPx, o número de pixels diferentes.
  */
-function dirtyRects(prev, cur, width, height, { align = 1, offX = 0, offY = 0 } = {}) {
+function dirtyRects(prev, cur, width, height, { align = 1, offX = 0, offY = 0, maxPixels = LZ4_MAX_PIXELS } = {}) {
   let rects;
   if (!prev || prev.length !== cur.length) {
-    rects = splitRect(alignRect([0, 0, width, height], align, offX, offY, width, height), align);
+    rects = splitRect(alignRect([0, 0, width, height], align, offX, offY, width, height), align, maxPixels);
     rects.changedPx = width * height;
     return rects;
   }
@@ -345,7 +353,7 @@ function dirtyRects(prev, cur, width, height, { align = 1, offX = 0, offY = 0 } 
 
   rects = [];
   for (const r of all) {
-    rects.push(...splitRect(alignRect([r.x0, r.y0, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1], align, offX, offY, width, height), align));
+    rects.push(...splitRect(alignRect([r.x0, r.y0, r.x1 - r.x0 + 1, r.y1 - r.y0 + 1], align, offX, offY, width, height), align, maxPixels));
   }
   rects.changedPx = changedPx;
   return rects;
@@ -368,14 +376,27 @@ function rectPacket(frame, stride, x, y, w, h, offX = 0, offY = 0, lz4 = false) 
   return packet(type, x + offX, y + offY, w, h, data);
 }
 
+/** Retângulo (x, y, w, h pares) enviado a metade da resolução, em LZ4: o ESP32 duplica cada pixel. */
+function halfRectPacket(frame, stride, x, y, w, h, offX = 0, offY = 0) {
+  const hw = w >> 1, hh = h >> 1;
+  const px = new Uint16Array(hw * hh);
+  for (let j = 0; j < hh; j++) {
+    const row = (y + 2 * j) * stride + x;
+    for (let i = 0; i < hw; i++) px[j * hw + i] = frame[row + 2 * i];
+  }
+  return packet(PKT.RECT_LZ4, x + offX, y + offY, w, h, lz4Compress(toWire(px)), RECT_FLAG_2X);
+}
+
 /**
  * Pacotes para passar de prev a cur. O frame tem o tamanho da área visível;
  * offX/offY deslocam-no para a posição dessa área no controlador do LCD.
  * O array traz stats: { rects, changedPx, sentPx }.
  */
-function encodeFrame(prev, cur, width, height, offX = 0, offY = 0, { lz4 = false, align = 1 } = {}) {
-  const rects = dirtyRects(prev, cur, width, height, { align, offX, offY });
-  const packets = rects.map(([x, y, w, h]) => rectPacket(cur, width, x, y, w, h, offX, offY, lz4));
+function encodeFrame(prev, cur, width, height, offX = 0, offY = 0, { lz4 = false, align = 1, half = false } = {}) {
+  // half: `cur` só tem blocos 2x2 de cor única nas zonas alteradas; seguem a metade da resolução.
+  if (half) align = Math.max(align, 2);
+  const rects = dirtyRects(prev, cur, width, height, { align, offX, offY, maxPixels: half ? LZ4_MAX_PIXELS * 4 : LZ4_MAX_PIXELS });
+  const packets = rects.map(([x, y, w, h]) => (half ? halfRectPacket(cur, width, x, y, w, h, offX, offY) : rectPacket(cur, width, x, y, w, h, offX, offY, lz4)));
   packets.stats = { rects: rects.length, changedPx: rects.changedPx, sentPx: rects.reduce((n, r) => n + r[2] * r[3], 0) };
   return packets;
 }
@@ -425,6 +446,8 @@ function parseHello(p) {
     height: p.readUInt16LE(3),
     dma: !!(p[5] & 1),
     lz4: !!(p[5] & 2),   // aceita PKT_RECT_LZ4
+    buffered: !!(p[5] & 4),   // framebuffer: mostra cada frame de uma vez (SYNC_HOLD)
+    upscale: !!(p[5] & 8),    // aceita RECT_FLAG_2X
     // v3: área visível guardada no ESP32
     viewport: p.length >= 14
       ? { x: p.readUInt16LE(6), y: p.readUInt16LE(8), width: p.readUInt16LE(10), height: p.readUInt16LE(12) }
@@ -474,6 +497,6 @@ function parseError(p) {
 }
 
 module.exports = {
-  PKT, RSP, packet, syncPacket, bgraToRgb565, rectPixels, toWire, rleEncode, rleDecode,
+  PKT, RSP, SYNC_HOLD, RECT_FLAG_2X, packet, syncPacket, bgraToRgb565, rectPixels, toWire, rleEncode, rleDecode,
   dirtyRects, splitRect, alignRect, alignViewport, rectPacket, lz4Compress, lz4Decompress, LZ4_MAX_PIXELS, encodeFrame, fillPacket, ReplyParser, parseHello, parseAck, parseError, describeReset, LCD_LANGS,
 };

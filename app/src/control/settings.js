@@ -55,6 +55,8 @@ function renderAbout() {
 
 /* ---- Ecrã do LCD: área visível e calibração ---- */
 
+const ANIM_LEVELS = ['quality', 'balanced', 'smooth'];
+
 function renderDisplaySettings() {
   const box = $('#displaySettings');
   box.innerHTML = '';
@@ -91,6 +93,13 @@ function renderDisplaySettings() {
         renderDisplaySettings();
       })),
     h('p', { class: 'desc' }, t('display.scaleHelp.' + Scaling.normalizeMode(config.scaleMode))),
+    field(t('display.anim'), choiceInput(ANIM_LEVELS.includes(config.animQuality) ? config.animQuality : 'quality',
+      ANIM_LEVELS.map((m) => [m, t('display.anim.' + m)]), (v) => {
+        config.animQuality = v;
+        commit();
+        renderDisplaySettings();
+      })),
+    h('p', { class: 'desc' }, t('display.animHelp.' + (ANIM_LEVELS.includes(config.animQuality) ? config.animQuality : 'quality'))),
   );
   updateDisplayInfo();
 }
