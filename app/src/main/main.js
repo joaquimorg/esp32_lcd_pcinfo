@@ -31,6 +31,9 @@ const screenshotArg = process.argv.find((a) => a.startsWith('--screenshot='));
 const SCREENSHOT_DIR = screenshotArg ? screenshotArg.split('=')[1] : null;
 // Nos testes a janela pode estar tapada por outras: o Windows deixaria de a pintar.
 if (SCREENSHOT_DIR) app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+// As janelas desenham fora do ecrã e a app só lê o bitmap: sem composição na GPU não há
+// processo de GPU a reter texturas (menos ~110 MB), e o custo na CPU é pequeno.
+app.commandLine.appendSwitch('disable-gpu-compositing');
 // --hidden: arranque com o Windows, fica só no tray.
 const START_HIDDEN = process.argv.includes('--hidden');
 // --profile=<pasta>: usa outra pasta de dados (testes sem tocar na configuração real).
@@ -293,6 +296,7 @@ let thumbTimer = null;
 function refreshThumbs(now = false) {
   clearTimeout(thumbTimer);
   thumbTimer = setTimeout(() => {
+    if (!controlWin) return;   // as miniaturas só servem a janela de gestão; refaz-se ao abri-la
     const changed = [];
     for (const s of config.screens) {
       const key = JSON.stringify([s.background, s.components, s.design, config.scaleMode, size, language(), screenFileStamps(s)]);
@@ -328,22 +332,22 @@ function createControlWindow() {
   });
   logConsole('gestão', controlWin.webContents);
   controlWin.loadFile(path.join(ROOT, 'src', 'control', 'index.html'));
-  controlWin.on('close', (e) => {
-    // Fechar a janela só a esconde: o LCD continua a ser atualizado.
-    if (!quitting) {
-      e.preventDefault();
-      controlWin.hide();
-    }
-  });
-  // Sem a janela à vista não há edição nem calibração: o LCD volta à execução normal.
-  controlWin.on('hide', () => {
+  // Fechar a janela destrói-a (liberta o renderer, ~100-200 MB); o LCD continua a ser
+  // atualizado e a janela volta a ser criada em openControl.
+  controlWin.on('closed', () => {
+    controlWin = null;
+    if (quitting) return;
+    // Sem a janela não há edição nem calibração: o LCD volta à execução normal.
     setCalibrating(false);
     setMode('run');
   });
 }
 
 function openControl() {
-  if (!controlWin) createControlWindow();
+  if (!controlWin) {
+    createControlWindow();
+    refreshThumbs(true);
+  }
   controlWin.show();
   controlWin.focus();
 }
@@ -731,7 +735,7 @@ app.whenReady().then(() => {
 
   player.update(config.screens);
   createDisplayWindow();
-  createControlWindow();
+  if (!START_HIDDEN) createControlWindow();   // arranque com o Windows: só o tray, sem renderer da janela
   createTray();
 
   thumbnailer = new Thumbnailer({

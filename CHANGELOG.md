@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.13.1
+
+**Lower memory use**
+- Private memory of the app dropped from ~370 MB to ~215 MB in a test with the
+  same configuration: GPU compositing is off (the windows are offscreen and only
+  their bitmap is read), the thumbnail window closes 15 s after it is no longer
+  needed, and closing the management window now destroys it instead of hiding
+  it (it is recreated from the tray). Starting hidden with Windows no longer
+  creates that window at all.
+
 ## 0.13.0
 
 **Rotate the LCD**

@@ -4,7 +4,8 @@ const { BrowserWindow } = require('electron');
 
 const MIN_SETTLE_MS = 700;     // tempo mínimo para os componentes desenharem
 const MAX_WAIT_MS = 12000;     // espera máxima por imagens a carregar (GIFs grandes)
-const PAINT_MS = 400;          // depois de tudo carregado, tempo para o último desenho
+const PAINT_MS = 400;
+const IDLE_CLOSE_MS = 15000;   // sem pedidos, a janela é destruída (liberta um renderer)          // depois de tudo carregado, tempo para o último desenho
 
 /**
  * Miniaturas dos widgets para a biblioteca: cada ecrã é desenhado numa janela
@@ -26,9 +27,11 @@ class Thumbnailer {
     this.busy = false;
     this.win = null;
     this.lastImage = null;
+    this.idleTimer = null;
   }
 
   request(ids) {
+    clearTimeout(this.idleTimer);
     for (const id of ids) if (!this.queue.includes(id)) this.queue.push(id);
     this.run();
   }
@@ -51,9 +54,12 @@ class Thumbnailer {
         await this.settle();
         if (this.win.isDestroyed()) return;
         if (this.lastImage) this.opts.onThumb(id, this.lastImage.toDataURL());
+        this.lastImage = null;
       }
     } finally {
       this.busy = false;
+      clearTimeout(this.idleTimer);
+      this.idleTimer = setTimeout(() => { if (!this.busy && !this.queue.length) this.destroy(); }, IDLE_CLOSE_MS);
     }
   }
 
@@ -95,7 +101,9 @@ class Thumbnailer {
   }
 
   destroy() {
+    clearTimeout(this.idleTimer);
     if (this.win && !this.win.isDestroyed()) this.win.destroy();
+    this.win = null;
   }
 }
 
