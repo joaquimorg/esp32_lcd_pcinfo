@@ -6,3 +6,4 @@
 app/node_modules
 __pycache__/
 app/dist
+build/release/
