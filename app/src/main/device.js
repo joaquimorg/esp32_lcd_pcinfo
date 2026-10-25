@@ -13,7 +13,7 @@ const SKIP_PIDS = new Set(['1001', '0002']);
 // automática só se experimentam os usados nessas placas; abrir uma porta de outro
 // adaptador (Arduino, impressora…) pode reiniciá-lo. Resto: escolha manual.
 const UART_AUTO_VIDS = new Set(['1a86', '10c4']);   // WCH CH340/CH9102, Silicon Labs CP210x
-const UART_BAUD = 921600;       // tem de coincidir com UART_BAUD em src/protocol.h
+const UART_BAUD = 2000000;       // tem de coincidir com UART_BAUD em src/protocol.h
 const UART_BOOT_WAIT_MS = 1500; // abrir a porta pode reiniciar a placa (DTR/RTS): espera que arranque
 const UART_HELLO_TRIES = 3;
 const UART_RESTART_WAIT_MS = 3000;
@@ -112,6 +112,23 @@ class Device extends EventEmitter {
     if (!this.ready || this.info.lang === code || this.info.lang == null) return;
     this.port.write(P.packet(P.PKT.LANG, code));
     this.info.lang = code;
+  }
+
+  /**
+   * Roda o LCD (0..3, x90°). O ESP32 muda de tamanho: repete-se o HELLO e anuncia-se
+   * 'connected' outra vez, para a app refazer a geometria e reenviar o ecrã.
+   */
+  async setRotation(rot) {
+    if (!this.ready || !this.info.rotatable || this.info.rotation === rot) return;
+    this.port.write(P.packet(P.PKT.ROTATION, rot));
+    this.inFlight = [];
+    try {
+      const hello = await this._hello(3);
+      this.info = { ...hello, path: this.info.path };
+      this.emit('connected', this.info);
+    } catch (err) {
+      this.emit('log', `rotação: ${err.message}`);
+    }
   }
 
   /** Envia os pacotes de um frame seguidos de SYNC; o ACK liberta o próximo. */

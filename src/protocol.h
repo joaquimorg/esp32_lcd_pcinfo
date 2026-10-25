@@ -40,7 +40,7 @@
 // Velocidade da UART nas placas sem USB nativo (LCD_TRANSPORT_UART). A app não a
 // pode saber pelo HELLO (ainda não há ligação), por isso tem de ficar igual em
 // app/src/main/device.js (UART_BAUD) e tools/usb_display_bench.py.
-#define UART_BAUD     921600
+#define UART_BAUD     2000000
 
 enum PacketType : uint8_t {
   PKT_HELLO    = 0x01,  // sem payload -> RSP_HELLO
@@ -53,6 +53,9 @@ enum PacketType : uint8_t {
                         // guardada na flash, usada pelo ecrã de espera
   PKT_LANG     = 0x08,  // x = idioma do ecrã de espera (LANG_*), sem payload;
                         // guardado na flash
+  PKT_ROTATION = 0x0A,  // x = rotação do LCD (0..3, x90°), sem payload; guardada na flash.
+                        // Só se HELLO.flags tiver HELLO_FLAG_ROTATE. O ecrã passa a ter outro
+                        // tamanho: a app deve repetir o HELLO
   PKT_RECT_LZ4 = 0x09,  // payload: bloco LZ4 dos w*h pixels (big-endian);
                         // w*h <= LZ4_MAX_PIXELS. Só se HELLO.flags tiver HELLO_FLAG_LZ4
 };
@@ -64,7 +67,8 @@ enum PacketType : uint8_t {
 #define HELLO_FLAG_DMA      0x01
 #define HELLO_FLAG_LZ4      0x02
 #define HELLO_FLAG_BUFFERED 0x04   // tem framebuffer: mostra cada frame de uma vez (ver SYNC_HOLD)
-#define HELLO_FLAG_UPSCALE  0x08   // aceita RECT_FLAG_2X (precisa do framebuffer)
+#define HELLO_FLAG_UPSCALE  0x08   // aceita RECT_FLAG_2X (com ou sem framebuffer)
+#define HELLO_FLAG_ROTATE   0x10   // aceita PKT_ROTATION
 
 // PacketHeader.flags de PKT_RECT_LZ4: os pixels são metade da largura e da altura de
 // (w, h) e o ESP32 duplica-os em blocos 2x2 (x, y, w, h pares). Para animações.
@@ -113,6 +117,7 @@ struct HelloReply {
   uint8_t  lang;          // LANG_*: idioma do ecrã de espera (PKT_LANG)
   uint8_t  transport;     // TRANSPORT_*: como o ESP32 está ligado ao PC
   uint8_t  align;         // 1 = qualquer retângulo; 2 = x, y, w, h pares (AMOLED)
+  uint8_t  rotation;      // rotação atual do LCD (0..3), ver PKT_ROTATION
 };
 
 enum Transport : uint8_t {

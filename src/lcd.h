@@ -226,6 +226,8 @@ static inline void lcdCommit(Lcd& l) { l.commit(); }
 static inline bool lcdPushPixels2x(Lcd& l, const uint16_t* d, uint32_t hw, uint32_t hh) { return l.pushPixels2x(d, hw, hh); }
 static inline void lcdFlushStale(Lcd& l, uint32_t now) { l.flushStale(now); }
 static inline bool lcdBuffered(Lcd& l) { return l.buffered(); }
+static inline bool lcdCanRotate(Lcd&) { return false; }
+static inline bool lcdCanUpscale(Lcd& l) { return l.buffered(); }
 static inline void lcdSleep(Lcd& l) { l.sleep(); }
 static inline void lcdWake(Lcd& l) { l.wake(); }
 
@@ -240,9 +242,24 @@ typedef TFT_eSPI Lcd;
 static inline void lcdFillRect(Lcd& l, int32_t x, int32_t y, int32_t w, int32_t h, uint16_t c) { l.fillRect(x, y, w, h, c); }
 static inline void lcdPresent(Lcd&) {}
 static inline void lcdCommit(Lcd&) {}
-static inline bool lcdPushPixels2x(Lcd&, const uint16_t*, uint32_t, uint32_t) { return false; }
+// Sem framebuffer: cada linha de origem é duplicada em largura e enviada duas vezes
+// para a janela já aberta (hw x hh pixels de origem, janela de 2*hw x 2*hh).
+static inline bool lcdPushPixels2x(Lcd& l, const uint16_t* data, uint32_t hw, uint32_t hh)
+{
+  static uint16_t row[TFT_HEIGHT];   // 2*hw <= largura da janela <= TFT_HEIGHT
+  if (2 * hw > TFT_HEIGHT) return false;
+  for (uint32_t j = 0; j < hh; j++) {
+    const uint16_t* src = data + j * hw;
+    for (uint32_t i = 0; i < hw; i++) row[2 * i] = row[2 * i + 1] = src[i];
+    l.pushPixels(row, 2 * hw);
+    l.pushPixels(row, 2 * hw);
+  }
+  return true;
+}
 static inline void lcdFlushStale(Lcd&, uint32_t) {}
 static inline bool lcdBuffered(Lcd&) { return false; }
+static inline bool lcdCanUpscale(Lcd&) { return true; }
+static inline bool lcdCanRotate(Lcd&) { return true; }
 
 // LCDs com backlight (ex: CYD, TFT_BL): apaga-o. Sem TFT_BL não há nada a desligar.
 #ifndef TFT_BACKLIGHT_ON

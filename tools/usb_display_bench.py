@@ -40,7 +40,7 @@ RSP_HELLO, RSP_ACK, RSP_ERROR = 0x81, 0x85, 0x8E
 ERROR_NAMES = {1: "BAD_TYPE", 2: "BAD_RECT", 3: "BAD_LEN", 4: "RLE_DECODE", 5: "RX_TIMEOUT"}
 ESPRESSIF_VID = 0x303A
 UART_VIDS = (0x1A86, 0x10C4)   # CH340/CH9102 e CP210x: placas sem USB nativo (ex: CYD)
-UART_BAUD = 921600            # igual a UART_BAUD em src/protocol.h
+UART_BAUD = 2000000            # igual a UART_BAUD em src/protocol.h
 
 
 def packet(ptype, x=0, y=0, w=0, h=0, payload=b""):

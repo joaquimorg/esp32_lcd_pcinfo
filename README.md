@@ -102,7 +102,7 @@ need a new environment.
 | Environment | Board | Display | PC link |
 |---|---|---|---|
 | `lolin_s2_mini` | [LOLIN (WEMOS) S2 Mini](https://www.wemos.cc/en/latest/s2/s2_mini.html) (ESP32-S2) | 240×320 SPI, ST7789 | native USB |
-| `cyd28_ili9341` | ESP32 CYD 2.8" (ESP32-2432S028R) | 240×320, ILI9341 | USB-serial chip (CH340/CP210x), 921600 baud |
+| `cyd28_ili9341` | ESP32 CYD 2.8" (ESP32-2432S028R) | 240×320, ILI9341 | USB-serial chip (CH340/CP210x), 2000000 baud |
 | `cyd28_st7789` | the same CYD, ST7789 variant | 240×320, ST7789 | as above |
 | `waveshare_amoled_206` | Waveshare ESP32-S3-Touch-AMOLED-2.06 (ESP32-S3R8) | 410×502 AMOLED, CO5300 over QSPI | native USB |
 
@@ -137,7 +137,7 @@ To add another board or panel, copy an environment and change the
 
 The S2 Mini uses its **native USB**. Boards with USB-Serial-JTAG (ESP32-S3/C3/C6
 on their JTAG port) are not supported. Boards with a CH340/CP210x USB-serial
-chip use the UART build (`LCD_TRANSPORT_UART`, 921600 baud) like the CYD; the
+chip use the UART build (`LCD_TRANSPORT_UART`, 2000000 baud) like the CYD; the
 app finds them automatically. Other USB-serial adapters can be picked by hand
 in **Settings → ESP32 connection**.
 

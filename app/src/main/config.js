@@ -57,6 +57,8 @@ function defaultConfig() {
     // Fluidez das animações: 'quality' | 'balanced' | 'smooth' (perde bits de cor nas imagens
     // muito diferentes da anterior para mandar menos bytes; ver frame-sender.js).
     animQuality: 'quality',
+    // Rotação do LCD em passos de 90° (0..3). Só placas com TFT_eSPI (ver PKT_ROTATION).
+    rotation: 0,
     screens: [
       monitor('CPU', 'Ryzen 5', '/amdcpu/0/temperature/2', '/amdcpu/0/load/0', '/amdcpu/0/power/0'),
       monitor('GPU', 'RX 580', '/gpu-amd/0/temperature/0', '/gpu-amd/0/load/0', '/gpu-amd/0/power/3'),

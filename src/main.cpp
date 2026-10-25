@@ -68,12 +68,29 @@ static Lcd tft;
 
 static void onIdle();
 static void onViewportChanged();
+static void enterWaiting();
 
 // Área visível do painel (pode ser menor que o controlador, ex: 240x280 com
 // desvio de 20 linhas). Definida pela app e guardada na flash.
 static struct { uint16_t x, y, w, h; } vp;
 static Preferences prefs;
 static uint8_t lang = LANG_EN;   // idioma do ecrã de espera (PKT_LANG, guardado na flash)
+static uint8_t rotation = 0;     // rotação do LCD, x90° (PKT_ROTATION, guardada na flash)
+
+static void loadRotation()
+{
+  prefs.begin("usblcd", true);
+  rotation = prefs.getUChar("rot", 0) & 3;
+  prefs.end();
+}
+
+static void saveRotation()
+{
+  prefs.begin("usblcd", false);
+  prefs.putUChar("rot", rotation);
+  prefs.remove("vp");   // a área visível guardada era da orientação anterior
+  prefs.end();
+}
 
 static void loadViewport()
 {
@@ -643,7 +660,7 @@ static bool handleLz4(const PacketHeader& h)
 {
   // RECT_FLAG_2X: os pixels do pacote são metade da largura e da altura (ver protocol.h).
   const bool x2 = (h.flags & RECT_FLAG_2X) != 0;
-  const bool x2Ok = !x2 || (lcdBuffered(tft) && !((h.x | h.y | h.w | h.h) & 1));
+  const bool x2Ok = !x2 || (lcdCanUpscale(tft) &&!((h.x | h.y | h.w | h.h) & 1));
   uint32_t pixels = x2 ? (uint32_t)(h.w / 2) * (h.h / 2) : (uint32_t)h.w * h.h;
   if (!x2Ok || !rectValid(h) || pixels > LZ4_MAX_PIXELS || h.len > LZ4_BUF) {
     sendError(!x2Ok || !rectValid(h) || pixels > LZ4_MAX_PIXELS ? ERR_BAD_RECT : ERR_BAD_LEN, h.type);
@@ -673,9 +690,9 @@ static bool handlePacket(const PacketHeader& h)
     case PKT_HELLO: {
       skipPayload(h.len);
       HelloReply r = { PROTO_VERSION, (uint16_t)tft.width(), (uint16_t)tft.height(),
-                       (uint8_t)((USBD_LCD_DMA ? HELLO_FLAG_DMA : 0) | HELLO_FLAG_LZ4 | (lcdBuffered(tft) ? HELLO_FLAG_BUFFERED | HELLO_FLAG_UPSCALE : 0)),
+                       (uint8_t)((USBD_LCD_DMA ? HELLO_FLAG_DMA : 0) | HELLO_FLAG_LZ4 | (lcdBuffered(tft) ? HELLO_FLAG_BUFFERED : 0) | (lcdCanUpscale(tft) ? HELLO_FLAG_UPSCALE : 0) | (lcdCanRotate(tft) ? HELLO_FLAG_ROTATE : 0)),
                        vp.x, vp.y, vp.w, vp.h, bootResetReason, bootRestartCause, lang,
-                       (uint8_t)(LCD_TRANSPORT_UART ? TRANSPORT_UART : TRANSPORT_USB_CDC), LCD_ALIGN };
+                       (uint8_t)(LCD_TRANSPORT_UART ? TRANSPORT_UART : TRANSPORT_USB_CDC), LCD_ALIGN, rotation };
       sendReply(RSP_HELLO, &r, sizeof(r));
       return true;
     }
@@ -743,6 +760,21 @@ static bool handlePacket(const PacketHeader& h)
         lang = h.x;
         saveLanguage();
         onViewportChanged();   // redesenha o ecrã de espera, se estiver à vista
+      }
+      return true;
+
+    case PKT_ROTATION:
+      skipPayload(h.len);
+      if (h.x > 3 || !lcdCanRotate(tft)) {
+        sendError(ERR_BAD_RECT, h.type);
+        return true;
+      }
+      if (h.x != rotation) {
+        rotation = h.x;
+        tft.setRotation(rotation);
+        saveRotation();
+        vp = { 0, 0, (uint16_t)tft.width(), (uint16_t)tft.height() };
+        enterWaiting();   // redesenha o ecrã de espera e obriga a app a reenviar o frame
       }
       return true;
 
@@ -896,7 +928,8 @@ void setup()
 #endif
 
   tft.init();
-  tft.setRotation(0);
+  loadRotation();
+  tft.setRotation(lcdCanRotate(tft) ? rotation : 0);
   tft.setSwapBytes(false);  // os pixels já chegam em big-endian
   loadViewport();
 

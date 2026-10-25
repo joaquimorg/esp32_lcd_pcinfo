@@ -7,7 +7,7 @@ const MAGIC0 = 0xA5;
 const MAGIC1 = 0x5A;
 const HEADER_SIZE = 16;
 
-const PKT = { HELLO: 0x01, RECT_RAW: 0x02, RECT_RLE: 0x03, FILL: 0x04, SYNC: 0x05, SINK: 0x06, VIEWPORT: 0x07, LANG: 0x08, RECT_LZ4: 0x09 };
+const PKT = { HELLO: 0x01, RECT_RAW: 0x02, RECT_RLE: 0x03, FILL: 0x04, SYNC: 0x05, SINK: 0x06, VIEWPORT: 0x07, LANG: 0x08, RECT_LZ4: 0x09, ROTATION: 0x0A };
 const RSP = { HELLO: 0x81, ACK: 0x85, ERROR: 0x8E };
 const ERROR_NAMES = { 1: 'BAD_TYPE', 2: 'BAD_RECT', 3: 'BAD_LEN', 4: 'RLE_DECODE', 5: 'RX_TIMEOUT' };
 
@@ -460,6 +460,9 @@ function parseHello(p) {
     transport: p.length >= 18 && p[17] === 1 ? 'uart' : 'usb',
     // 2 = o LCD só aceita retângulos com x, y, largura e altura pares (AMOLED).
     align: p.length >= 19 && p[18] >= 2 ? p[18] : 1,
+    // Rotação do LCD (0..3, x90°); rotatable = aceita PKT_ROTATION (firmwares antigos: não).
+    rotatable: !!(p[5] & 16),
+    rotation: p.length >= 20 ? p[19] & 3 : 0,
   };
 }
 

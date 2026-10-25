@@ -76,6 +76,16 @@ function renderDisplaySettings() {
 
   box.append(
     h('p', { class: 'desc', id: 'ctrlInfo' }),
+    ...(displayState.rotatable ? [
+      field(t('display.rotation'), choiceInput(Number.isInteger(config.rotation) ? config.rotation & 3 : 0,
+        [0, 1, 2, 3].map((r) => [r, r * 90 + '°']), (v) => {
+          config.rotation = Number(v);
+          config.display = null;
+          commit();
+          renderDisplaySettings();
+        })),
+      h('p', { class: 'desc' }, t('display.rotationHelp')),
+    ] : []),
     field(t('display.manual'), toggle(manual, (v) => {
       config.display = v ? { ...displayState.viewport } : null;
       commit();

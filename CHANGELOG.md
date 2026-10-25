@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.13.0
+
+**Rotate the LCD**
+- **Settings → LCD screen → Rotate LCD**: 0°, 90°, 180° or 270°, applied live and
+  kept in the board's flash (new `PKT_ROTATION`). The visible area goes back to
+  automatic and widgets are rescaled to the new shape. Available on the TFT_eSPI
+  boards (S2 Mini, CYD); needs the new firmware. The AMOLED does not rotate.
+
+**Faster CYD / UART boards**
+- The UART link now runs at 2000000 baud (was 921600): ~1.6× more throughput on
+  the CYD (measured 0.15 MB/s of pure transfer with the CH340). Reflash the board
+  and update the app together; they must use the same speed. A CP2102 (not
+  CP2102N) tops out at 1 Mbaud and would need `UART_BAUD` lowered.
+- Boards without a framebuffer (CYD) now accept the half-resolution mode of
+  *Animation smoothness* (*Balanced* / *Smoothest*): 4× less data while an area
+  moves a lot.
+
 ## 0.12.1
 
 **Fixes**

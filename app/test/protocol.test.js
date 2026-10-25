@@ -236,3 +236,13 @@ test('HELLO: byte de alinhamento (firmwares antigos = 1)', () => {
   assert.strictEqual(P.parseHello(p).align, 2);
   assert.strictEqual(P.parseHello(p.subarray(0, 18)).align, 1);
 });
+
+test('HELLO diz se o LCD roda e em que posição está', () => {
+  const p = Buffer.alloc(20);
+  p[0] = 3; p.writeUInt16LE(320, 1); p.writeUInt16LE(240, 3);
+  assert.strictEqual(P.parseHello(p).rotatable, false);
+  p[5] = 0x10; p[19] = 1;
+  assert.strictEqual(P.parseHello(p).rotatable, true);
+  assert.strictEqual(P.parseHello(p).rotation, 1);
+  assert.strictEqual(P.parseHello(p.subarray(0, 19)).rotation, 0, 'firmware sem o byte de rotação');
+});

@@ -134,6 +134,8 @@ function onPaint(image) {
   }
 }
 
+const rotationSetting = () => (Number.isInteger(config.rotation) ? config.rotation & 3 : 0);
+
 /** Área visível: a configurada na app ou, em automático, o controlador inteiro. */
 function viewport() {
   const d = config.display;
@@ -389,7 +391,7 @@ function sendStatus() {
     deviceErrors,
     player: playerStatus(),
     size,
-    display: { controller, viewport: viewport(), auto: !config?.display, calibrating },
+    display: { controller, viewport: viewport(), auto: !config?.display, calibrating, rotatable: !!device.info?.rotatable, rotation: rotationSetting() },
   });
 }
 
@@ -477,6 +479,10 @@ function applyConfig(next) {
     updateTrayMenu();
     device.setLanguage(language());
   }
+  if (prev.rotation !== config.rotation) {
+    config.display = null;   // a área visível era da orientação anterior
+    device.setRotation(rotationSetting());
+  }
   if (prev.port !== config.port) device.setPortSetting(config.port || 'auto');
   if (prev.startWithWindows !== config.startWithWindows) applyLoginItem();
   if (JSON.stringify(prev.display) !== JSON.stringify(config.display)) applyGeometry();
@@ -494,7 +500,7 @@ ipcMain.handle('state:get', () => ({
   thumbs: Object.fromEntries([...thumbs].filter(([, t]) => t.url).map(([id, t]) => [id, t.url])),
   player: playerStatus(),
   size,
-  display: { controller, viewport: viewport(), auto: !config.display, calibrating },
+  display: { controller, viewport: viewport(), auto: !config.display, calibrating, rotatable: !!device.info?.rotatable, rotation: rotationSetting() },
   transitions: TRANSITIONS,
   version: app.getVersion(),
 }));
@@ -669,6 +675,7 @@ device.on('connected', (info) => {
   store.saveState(state);
   applyGeometry();
   device.setLanguage(language());
+  device.setRotation(rotationSetting());
 });
 device.on('disconnected', () => {
   console.log('[device] desligado');
