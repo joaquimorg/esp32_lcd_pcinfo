@@ -1,7 +1,7 @@
 # USB LCD Widgets
 
 
-  <p align="center"><img src="docs/images/display_240x296.jpg" alt="The USB LCD next to the PC" width="480"></p>
+  <p align="center"><img src="docs/images/display_oled.jpg" alt="The USB LCD next to the PC" width="480"></p>
 
 
 Turn a cheap ESP32 board with an SPI LCD into a USB hardware monitor
