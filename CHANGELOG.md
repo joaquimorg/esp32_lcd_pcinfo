@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.15.0
+
+**More fps, no loss of quality (CYD and S2 Mini)**
+- New `PKT_RECT_Z`: deflate-compressed rectangles, decoded by the tinfl routine that
+  is already in the ESP32 ROM (no extra flash). On a real 150-frame full-screen GIF it
+  sends ~27% fewer bytes than LZ4, bit for bit identical on the LCD (verified by reading
+  the LCD back and comparing its CRC32 with the frame, see `app/scripts/check-lcd.js`).
+  Measured fps, same GIF, same link: CYD over Wi-Fi 4.9 → 6.6 (+35%), S2 Mini over USB
+  6.3 → 8.2 (+32%), CYD over the serial cable 2.2 → 3.0 (+36%). The app picks deflate per
+  rectangle only when it saves more than 10% over LZ4. Needs the new firmware.
+- Over Wi-Fi three batches are kept in flight instead of two (+10-15% on heavy frames).
+- Experimental, off by default: `RECT_FLAG_XOR` (frame-to-frame difference against a copy of the
+  LCD kept in the board's RAM, `LCD_SHADOW=1`). It is exact too, but it only helps when
+  consecutive frames are close in time, which the current links are too slow for: the CYD
+  only has RAM for 130-180 of its 320 rows with Wi-Fi on, and the gain there was 2-5%.
+- Measured limits (no change possible in software): the Wi-Fi radio of the CYD delivers
+  0.3-0.65 MB/s with 5-60 ms jitter; a 40 MHz channel and full TX power made no difference.
+
 ## 0.14.0
 
 **Wi-Fi link for the CYD**

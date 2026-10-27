@@ -144,6 +144,13 @@ in **Settings → ESP32 connection**.
 The CYD has no flow control on the serial link, so it relies on the app sending
 one batch at a time and waiting for the ACK (see [How it works](#how-it-works)).
 
+### Frame compression
+
+Every changed rectangle is sent as the smallest of raw, RLE, LZ4 and (on the CYD and the
+S2 Mini) deflate. Deflate is about 25-35% smaller than LZ4 on photographic content such
+as GIFs and costs nothing in quality: the pixels are identical. See `CHANGELOG.md` for the
+measurements and `app/scripts/check-lcd.js` for the read-back check.
+
 ### Wi-Fi (CYD)
 
 The serial cable limits the CYD to about 0.15 MB/s. The CYD firmware can also

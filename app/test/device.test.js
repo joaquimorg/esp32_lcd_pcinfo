@@ -63,11 +63,11 @@ test('setLink só fecha a ligação quando o modo ou o endereço mudam', () => {
   assert.strictEqual(d.closed, 2);
 });
 
-test('por Wi-Fi podem estar dois lotes em voo; por cabo, um', () => {
+test('por Wi-Fi podem estar três lotes em voo; por cabo, um', () => {
   const d = new Device();
   d.port = {};
   d.info = { transport: 'uart' };
   assert.strictEqual(d.maxInFlight, 1);
   d.info = { transport: 'wifi' };
-  assert.strictEqual(d.maxInFlight, 2);
+  assert.strictEqual(d.maxInFlight, 3);
 });

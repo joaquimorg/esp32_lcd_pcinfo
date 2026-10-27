@@ -27,11 +27,11 @@ const LEVELS = {
 const HEAVY_FRACTION = 0.06;   // fração do ecrã que muda para a imagem contar como "pesada"
 const LOSSY_HOLD_MS = 800;     // depois de uma imagem pesada, continua com perdas até haver este tempo de calma
 
-const TYPE_NAMES = { [P.PKT.RECT_RAW]: 'raw', [P.PKT.RECT_RLE]: 'rle', [P.PKT.RECT_LZ4]: 'lz4', [P.PKT.FILL]: 'fill' };
+const TYPE_NAMES = { [P.PKT.RECT_RAW]: 'raw', [P.PKT.RECT_RLE]: 'rle', [P.PKT.RECT_LZ4]: 'lz4', [P.PKT.RECT_Z]: 'z', [P.PKT.FILL]: 'fill' };
 
 function newCounters() {
   return {
-    frames: 0, bytes: 0, rects: 0, changedPx: 0, sentPx: 0, byType: { raw: 0, rle: 0, lz4: 0, fill: 0 },
+    frames: 0, bytes: 0, rects: 0, changedPx: 0, sentPx: 0, byType: { raw: 0, rle: 0, lz4: 0, z: 0, fill: 0 },
     encodeMs: 0,   // tempo a codificar frames
     idleMs: 0,     // tempo com o cabo parado: do ACK até ao lote seguinte ser escrito
   };
@@ -192,7 +192,7 @@ class FrameSender {
     this.pending = null;
     const { x, y, width, height } = this.geom;
     const t0 = process.hrtime.bigint();
-    const packets = P.encodeFrame(this.lastSent, frame, width, height, x, y, { lz4: !!this.device.info?.lz4, align: this.device.info?.align || 1, half });
+    const packets = P.encodeFrame(this.lastSent, frame, width, height, x, y, { lz4: !!this.device.info?.lz4, align: this.device.info?.align || 1, half, xorRows: this.device.info?.shadowRows || 0, deflate: !!this.device.info?.deflate });
     this.counters.encodeMs += Number(process.hrtime.bigint() - t0) / 1e6;
     this.count(packets);
     if (this.needsClear && !this.lastSent) {

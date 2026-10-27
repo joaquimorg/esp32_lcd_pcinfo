@@ -65,7 +65,7 @@
  */
 #define WIFI_UDP_PORT   7878
 #define WIFI_PAYLOAD    1400
-#define WIFI_RING_SIZE  65536
+#define WIFI_RING_SIZE  32768
 
 enum PacketType : uint8_t {
   PKT_HELLO    = 0x01,  // sem payload -> RSP_HELLO
@@ -81,6 +81,9 @@ enum PacketType : uint8_t {
   PKT_WIFI_SET = 0x0B,  // payload: [u8 n][ssid n][u8 m][palavra-passe m]; guarda na flash e liga.
                         // ssid vazio desliga o Wi-Fi. Só se HELLO.flags tiver HELLO_FLAG_WIFI.
                         // O estado vê-se no HELLO (wifiState, wifiRssi, wifiIp)
+  PKT_RECT_Z   = 0x0C,  // payload: fluxo deflate (raw) dos w*h pixels (big-endian); w*h <= LZ4_MAX_PIXELS.
+                        // Comprime ~1,6x melhor que o LZ4 em imagens (o descodificador está na ROM do
+                        // ESP32). Aceita RECT_FLAG_XOR. Só se HELLO.flags tiver HELLO_FLAG_DEFLATE
   PKT_ROTATION = 0x0A,  // x = rotação do LCD (0..3, x90°), sem payload; guardada na flash.
                         // Só se HELLO.flags tiver HELLO_FLAG_ROTATE. O ecrã passa a ter outro
                         // tamanho: a app deve repetir o HELLO
@@ -98,10 +101,18 @@ enum PacketType : uint8_t {
 #define HELLO_FLAG_UPSCALE  0x08   // aceita RECT_FLAG_2X (com ou sem framebuffer)
 #define HELLO_FLAG_ROTATE   0x10   // aceita PKT_ROTATION
 #define HELLO_FLAG_WIFI     0x20   // tem Wi-Fi (PKT_WIFI_SET e transporte UDP, ver abaixo)
+#define HELLO_FLAG_DEFLATE  0x40   // aceita PKT_RECT_Z
 
 // PacketHeader.flags de PKT_RECT_LZ4: os pixels são metade da largura e da altura de
 // (w, h) e o ESP32 duplica-os em blocos 2x2 (x, y, w, h pares). Para animações.
 #define RECT_FLAG_2X 0x01
+
+// PacketHeader.flags de PKT_RECT_LZ4: o bloco descomprimido é a diferença (XOR byte a byte) entre
+// os pixels novos e os que o LCD já mostra nesse retângulo; o ESP32 aplica-a à sua cópia do ecrã
+// (shadow) e desenha o resultado. Em animações muda pouco de um frame para o seguinte, e a
+// diferença comprime-se muito melhor (no GIF de teste, 67 -> 38 KB por frame, sem perdas).
+// Só se o retângulo estiver nas primeiras HelloReply.shadowRows linhas do LCD.
+#define RECT_FLAG_XOR 0x02
 
 // PacketHeader.flags do PKT_SYNC: ainda há lotes do mesmo frame. Com framebuffer o
 // LCD só é atualizado no SYNC sem este bit, para o frame aparecer de uma vez; sem
@@ -150,6 +161,7 @@ struct HelloReply {
   uint8_t  wifiState;     // WSTATE_*: estado da ligação Wi-Fi
   int8_t   wifiRssi;      // dBm, só com WSTATE_CONNECTED
   uint8_t  wifiIp[4];     // IP da placa, só com WSTATE_CONNECTED
+  uint16_t shadowRows;    // linhas do LCD (a partir do topo) com cópia na RAM: aceitam RECT_FLAG_XOR
 };
 
 enum WifiStateCode : uint8_t {

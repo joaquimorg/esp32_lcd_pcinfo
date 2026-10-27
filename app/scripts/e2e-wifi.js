@@ -11,6 +11,8 @@ const { FrameSender } = require('../src/main/frame-sender');
 const host = process.argv.find((a) => /^\d+\.\d+\.\d+\.\d+$/.test(a));
 const ci = process.argv.indexOf('--serial');
 const com = ci >= 0 ? process.argv[ci + 1] : null;   // para comparar com o cabo
+const fi = process.argv.indexOf('--frames');
+const framesFile = fi >= 0 ? process.argv[fi + 1] : null;   // frames RGB565 240x320 seguidos (ex: um GIF real)
 const si = process.argv.indexOf('--seconds');
 const seconds = si >= 0 ? Number(process.argv[si + 1]) : 8;
 if (!host && !com) {
@@ -31,7 +33,9 @@ async function main() {
   else device.start({ link: { mode: 'wifi', host } });
   const info = await Promise.race([connected, sleep(8000).then(() => null)]);
   if (!info) throw new Error('não ligou por Wi-Fi');
-  console.log(`ligado: ${info.path}, ${info.width}x${info.height}, transporte ${info.transport}, ${info.wifi && info.wifi.rssi} dBm, maxInFlight ${device.maxInFlight}`);
+  console.log(`ligado: ${info.path}, ${info.width}x${info.height}, transporte ${info.transport}, ${info.wifi && info.wifi.rssi} dBm, maxInFlight ${device.maxInFlight}, shadowRows ${info.shadowRows}`);
+  if (process.env.NOZ) device.info.deflate = false;   // A/B: sem deflate
+  if (process.env.NOXOR) device.info.shadowRows = 0;   // A/B: sem a diferença para o frame anterior
   const { width: W, height: H } = info;
   sender.setGeometry({ x: 0, y: 0, width: W, height: H }, { width: W, height: H });
   if (info.transport !== 'wifi') sender.setQuality('quality');
@@ -64,6 +68,16 @@ async function main() {
     return f;
   };
 
+  if (framesFile) {
+    const raw = require('fs').readFileSync(framesFile);
+    const n = raw.length / (W * H * 2);
+    const gif = Array.from({ length: n }, (_, k) => new Uint16Array(raw.buffer.slice(raw.byteOffset + k * W * H * 2, raw.byteOffset + (k + 1) * W * H * 2)));
+    sender.setQuality('quality');
+    await run('gif', (i) => gif[i % n], 33);
+    console.log(`erros do ESP32: ${errors}`);
+    await device.stop();
+    return;
+  }
   await run('quadrado', square);
   sender.setQuality('balanced');
   await run('gradiente', gradient);

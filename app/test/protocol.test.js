@@ -264,3 +264,105 @@ test('PKT_WIFI_SET leva SSID e palavra-passe com os tamanhos à frente', () => {
   assert.deepStrictEqual([...pk.subarray(16)], [4, ...Buffer.from('casa'), 7, ...Buffer.from('segredo')]);
   assert.throws(() => P.wifiSetPacket('x'.repeat(33)));
 });
+
+// O ESP32 simulado: LCD e shadow (cópia das primeiras `shadowRows` linhas), como em src/main.cpp.
+function simulateEsp(W, H, shadowRows) {
+  const lcd = new Uint16Array(W * H);
+  const shadow = new Uint16Array(W * shadowRows);
+  const store = (x, y, w, h, px) => {
+    for (let j = 0; j < h; j++) {
+      lcd.set(px.subarray(j * w, (j + 1) * w), (y + j) * W + x);
+      if (y + j < shadowRows) shadow.set(px.subarray(j * w, (j + 1) * w), (y + j) * W + x);
+    }
+  };
+  const fromWire = (b) => { const px = new Uint16Array(b.length / 2); for (let i = 0; i < px.length; i++) px[i] = b.readUInt16BE(i * 2); return px; };
+  return {
+    lcd,
+    xorRects: 0,
+    apply(packets) {
+      for (const pk of packets) {
+        const type = pk[2], flags = pk[3];
+        const x = pk.readUInt16LE(4), y = pk.readUInt16LE(6), w = pk.readUInt16LE(8), h = pk.readUInt16LE(10);
+        const body = pk.subarray(16);
+        let px;
+        if (type === P.PKT.RECT_RAW) px = fromWire(body);
+        else if (type === P.PKT.RECT_RLE) px = fromWire(P.rleDecode(body));
+        else if (type === P.PKT.RECT_LZ4) {
+          let wire = P.lz4Decompress(body, w * h * 2);
+          if (flags & P.RECT_FLAG_XOR) {
+            assert.ok(y + h <= shadowRows, 'XOR fora das linhas da shadow');
+            const before = new Uint16Array(w * h);
+            for (let j = 0; j < h; j++) before.set(shadow.subarray((y + j) * W + x, (y + j) * W + x + w), j * w);
+            const d = fromWire(wire);
+            px = d.map((v, i) => v ^ before[i]);
+            this.xorRects++;
+          } else {
+            px = fromWire(wire);
+          }
+        } else if (type === P.PKT.RECT_Z) {
+          const wire = require('zlib').inflateRawSync(body);
+          if (flags & P.RECT_FLAG_XOR) {
+            assert.ok(y + h <= shadowRows, 'XOR fora das linhas da shadow');
+            const before = new Uint16Array(w * h);
+            for (let j = 0; j < h; j++) before.set(shadow.subarray((y + j) * W + x, (y + j) * W + x + w), j * w);
+            px = fromWire(wire).map((v, i) => v ^ before[i]);
+            this.xorRects++;
+          } else {
+            px = fromWire(wire);
+          }
+          this.zRects = (this.zRects || 0) + 1;
+        } else if (type === P.PKT.FILL) {
+          px = new Uint16Array(w * h).fill((body[0] << 8) | body[1]);
+        } else {
+          continue;
+        }
+        store(x, y, w, h, px);
+      }
+    },
+  };
+}
+
+test('RECT_FLAG_XOR: o ESP32 simulado (LCD + shadow) reproduz exatamente cada frame', () => {
+  const W = 64, H = 48, SHADOW = 24;
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) >>> 0; return seed / 0x100000000; };
+  let cur = new Uint16Array(W * H).map(() => (rnd() * 65536) | 0);
+  const esp = simulateEsp(W, H, SHADOW);
+  let prev = null;
+  for (let f = 0; f < 25; f++) {
+    // ~15% dos pixels mudam, espalhados, e às vezes uma faixa inteira (como num GIF)
+    const next = Uint16Array.from(cur);
+    for (let i = 0; i < next.length; i++) if (rnd() < 0.15) next[i] = (rnd() * 65536) | 0;
+    if (f % 5 === 4) for (let i = 10 * W; i < 14 * W; i++) next[i] = 0x07E0;
+    const packets = P.encodeFrame(prev, next, W, H, 0, 0, { lz4: true, xorRows: SHADOW, deflate: f % 2 === 0 });
+    if (!prev) packets.unshift(P.fillPacket(0, 0, W, H, 0));
+    esp.apply(packets);
+    assert.deepStrictEqual(Array.from(esp.lcd), Array.from(next), `frame ${f}`);
+    prev = next;
+    cur = next;
+  }
+  assert.ok(esp.xorRects > 0, 'devia ter usado a diferença nalgum retângulo');
+  assert.ok(esp.zRects > 0, 'devia ter usado deflate nalgum retângulo');
+});
+
+test('sem shadow (xorRows 0) nunca se usa a diferença', () => {
+  const W = 64, H = 48;
+  const a = new Uint16Array(W * H).map((_, i) => (i * 2654435761) >>> 16);
+  const b = Uint16Array.from(a); for (let i = 0; i < b.length; i += 7) b[i] ^= 0x1234;
+  for (const pk of P.encodeFrame(a, b, W, H, 0, 0, { lz4: true, xorRows: 0 })) assert.strictEqual(pk[3] & P.RECT_FLAG_XOR, 0);
+});
+
+test('HELLO traz as linhas da shadow', () => {
+  const p = Buffer.alloc(28);
+  p[0] = 3; p.writeUInt16LE(240, 1); p.writeUInt16LE(320, 3); p.writeUInt16LE(224, 26);
+  assert.strictEqual(P.parseHello(p).shadowRows, 224);
+  assert.strictEqual(P.parseHello(p.subarray(0, 26)).shadowRows, 0, 'firmware sem shadow');
+});
+
+test('HELLO diz se a placa descodifica deflate (PKT_RECT_Z)', () => {
+  const p = Buffer.alloc(28);
+  p[0] = 3; p[5] = 0x40;
+  assert.strictEqual(P.parseHello(p).deflate, true);
+  p[5] = 0;
+  assert.strictEqual(P.parseHello(p).deflate, false);
+});

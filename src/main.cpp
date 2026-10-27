@@ -35,6 +35,19 @@
 #ifndef LCD_WIFI
 #define LCD_WIFI 0
 #endif
+// PKT_RECT_Z: deflate, com o descodificador que já vem na ROM do ESP32 (11 KB de estado).
+#ifndef LCD_DEFLATE
+#define LCD_DEFLATE 0
+#endif
+#if LCD_DEFLATE
+#include <rom/miniz.h>
+#endif
+// Cópia do ecrã na RAM para receber só a diferença entre frames (ver RECT_FLAG_XOR). TFT_eSPI.
+#ifndef LCD_SHADOW
+#define LCD_SHADOW 0
+#endif
+#define SHADOW_RESERVE (56 * 1024)   // RAM que fica livre para o resto (Wi-Fi, pilha, USB)
+#define SHADOW_KEEP_BLOCK (12 * 1024)
 #if LCD_WIFI
 #include "wifi_link.h"
 #endif
@@ -504,18 +517,110 @@ static bool readHeader(PacketHeader& h)
 /* Saída para o LCD                                                          */
 /* ------------------------------------------------------------------------- */
 
+/*
+ * LZ4: o retângulo comprimido (<= LZ4_BUF bytes) é lido para lzIn e descomprimido de uma vez
+ * para lzOut, que segue para o LCD. Os pacotes que a app envia já têm w*h <= LZ4_MAX_PIXELS.
+ * lzOut serve também de buffer dos pacotes RAW/RLE (nunca se tratam dois ao mesmo tempo):
+ * poupa-se 8 KB de RAM, que é o que decide quantas linhas do ecrã a shadow consegue copiar.
+ */
+#define LZ4_BUF (LZ4_MAX_PIXELS * 2)
+static uint8_t lzIn[LZ4_BUF];
+alignas(4) static uint8_t lzOut[LZ4_BUF];   // alinhado a 4 bytes (pushPixels lê u32)
+
 #if USBD_LCD_DMA
 // Dois buffers: enquanto um vai por DMA para o LCD, o outro recebe do USB.
 static uint16_t* chunkBuf[2];
 static uint8_t chunkIdx = 0;
 #else
-static uint16_t chunkStorage[CHUNK_PIXELS];  // alinhado a 4 bytes (pushPixels lê u32)
+static uint16_t* const chunkStorage = (uint16_t*)lzOut;
+static_assert(CHUNK_PIXELS * 2 <= LZ4_BUF, "chunk maior que lzOut");
+#endif
+
+#if LCD_SHADOW
+/*
+ * Shadow: cópia na RAM das primeiras linhas do LCD, tal como estão no painel (mesmos bytes que
+ * se enviam). É o que permite receber só a diferença para o frame anterior (RECT_FLAG_XOR).
+ * Cada pixel desenhado, por qualquer pacote, é copiado para aqui; a app só usa a diferença
+ * depois de ter desenhado o frame completo (como já fazia para os retângulos alterados).
+ * Blocos de 3840 pixels = 16 linhas de 240 ou 12 de 320: uma linha nunca atravessa dois blocos.
+ */
+#define SHADOW_CHUNK_PX 3840
+#define SHADOW_MAX_CHUNKS 80
+static uint16_t* shadowChunk[SHADOW_MAX_CHUNKS];
+static uint8_t shadowChunks = 0;
+
+static uint16_t shadowRows()
+{
+  uint32_t w = tft.width();
+  if (!w || SHADOW_CHUNK_PX % w) return 0;
+  return (uint16_t)min<uint32_t>(tft.height(), (uint32_t)shadowChunks * SHADOW_CHUNK_PX / w);
+}
+
+// Fica com a RAM que sobrar, deixando `reserve` bytes livres para o resto (Wi-Fi, USB...). Também
+// tem de sobrar um bloco grande: sem ele a memória livre fica em bocados de 1 KB onde o lwip e o
+// AsyncUDP já não conseguem alocar os buffers de um datagrama (medido: perdia-se quase tudo).
+static void shadowInit(uint32_t reserve)
+{
+  const uint32_t bytes = SHADOW_CHUNK_PX * 2;
+  uint32_t need = (uint32_t)tft.width() * tft.height();
+  while (shadowChunks < SHADOW_MAX_CHUNKS && (uint32_t)shadowChunks * SHADOW_CHUNK_PX < need) {
+    if (ESP.getFreeHeap() < reserve + bytes || heap_caps_get_largest_free_block(MALLOC_CAP_8BIT) < bytes + SHADOW_KEEP_BLOCK) break;
+    uint16_t* p = (uint16_t*)heap_caps_malloc(bytes, MALLOC_CAP_8BIT);
+    if (!p) break;
+    memset(p, 0, bytes);
+    shadowChunk[shadowChunks++] = p;
+  }
+}
+
+static inline uint16_t* shadowAt(uint32_t y, uint32_t x)
+{
+  uint32_t idx = y * tft.width() + x;
+  return shadowChunk[idx / SHADOW_CHUNK_PX] + idx % SHADOW_CHUNK_PX;
+}
+
+// Copia n pixels (já na ordem do LCD) para a linha y, a partir de x.
+static inline void shadowStoreRun(uint32_t y, uint32_t x, const uint16_t* src, uint32_t n)
+{
+  if (y < shadowRows()) memcpy(shadowAt(y, x), src, n * 2);
+}
+
+// Pixels [idx, idx+n) de um retângulo (x, y, w) que chegam em sequência, linha a linha.
+static void shadowStoreStream(int rx, int ry, int rw, uint32_t idx, const uint16_t* src, uint32_t n)
+{
+  while (n) {
+    uint32_t row = idx / rw, col = idx % rw, k = min<uint32_t>(n, rw - col);
+    shadowStoreRun(ry + row, rx + col, src, k);
+    src += k; idx += k; n -= k;
+  }
+}
+
+static void shadowFill(int x, int y, int w, int h, uint16_t color)
+{
+  const uint16_t v = __builtin_bswap16(color);   // os bytes que o LCD recebe: alto primeiro
+  const uint32_t rows = shadowRows();
+  for (int yy = y; yy < y + h && (uint32_t)yy < rows; yy++) {
+    uint16_t* p = shadowAt(yy, x);
+    for (int xx = 0; xx < w; xx++) p[xx] = v;
+  }
+}
+
+// O ecrã de espera e o resto do que o próprio firmware desenha não passam pela shadow: a app
+// refaz o ecrã todo (screenEpoch) quando isso acontece, e é aí que volta a ficar certa.
+#else
+static inline uint16_t shadowRows() { return 0; }
 #endif
 static uint16_t* outBuf;
 static size_t outFill;
+#if LCD_SHADOW
+static int sinkX, sinkY, sinkW;
+static uint32_t sinkIdx;   // pixels do retângulo já enviados
+#endif
 
 static void sinkBegin(int x, int y, int w, int h)
 {
+#if LCD_SHADOW
+  sinkX = x; sinkY = y; sinkW = w; sinkIdx = 0;
+#endif
   tft.startWrite();
 #if USBD_LCD_DMA
   tft.dmaWait();
@@ -530,6 +635,10 @@ static void sinkBegin(int x, int y, int w, int h)
 static void sinkFlush()
 {
   if (!outFill) return;
+#if LCD_SHADOW
+  shadowStoreStream(sinkX, sinkY, sinkW, sinkIdx, outBuf, outFill);
+  sinkIdx += outFill;
+#endif
 #if USBD_LCD_DMA
   tft.pushPixelsDMA(outBuf, outFill);
   chunkIdx ^= 1;
@@ -641,14 +750,6 @@ static bool handleRle(const PacketHeader& h)
   return true;
 }
 
-/*
- * LZ4: o retângulo comprimido (<= LZ4_BUF bytes) é lido para lzIn e descomprimido
- * de uma vez para lzOut, que segue para o LCD. Os pacotes que a app envia já
- * têm w*h <= LZ4_MAX_PIXELS.
- */
-#define LZ4_BUF (LZ4_MAX_PIXELS * 2)
-static uint8_t lzIn[LZ4_BUF];
-alignas(4) static uint8_t lzOut[LZ4_BUF];   // alinhado a 4 bytes (pushPixels lê u32)
 
 // Descomprime um bloco LZ4. Devolve o tamanho obtido, ou -1 se o bloco for inválido
 // ou não couber em dstCap. Toda a leitura e escrita é verificada.
@@ -698,30 +799,77 @@ static int lz4Decode(const uint8_t* src, uint32_t srcLen, uint8_t* dst, uint32_t
   return d - dst;
 }
 
-static bool handleLz4(const PacketHeader& h)
+#if LCD_DEFLATE
+static tinfl_decompressor inflator;
+
+// Descomprime um fluxo deflate (raw) para dst, que tem de caber o resultado inteiro. Devolve o
+// tamanho obtido ou -1 se o fluxo for inválido, incompleto ou não couber.
+static int zDecode(const uint8_t* src, uint32_t srcLen, uint8_t* dst, uint32_t dstCap)
 {
+  tinfl_init(&inflator);
+  size_t in = srcLen, out = dstCap;
+  tinfl_status st = tinfl_decompress(&inflator, src, &in, dst, dst, &out, TINFL_FLAG_USING_NON_WRAPPING_OUTPUT_BUF);
+  return st == TINFL_STATUS_DONE ? (int)out : -1;
+}
+#else
+static int zDecode(const uint8_t*, uint32_t, uint8_t*, uint32_t) { return -1; }
+#endif
+
+// PKT_RECT_LZ4 e PKT_RECT_Z: mesmo tratamento, só muda o descompressor.
+static bool handleCompressed(const PacketHeader& h)
+{
+  const bool z = h.type == PKT_RECT_Z;
   // RECT_FLAG_2X: os pixels do pacote são metade da largura e da altura (ver protocol.h).
   const bool x2 = (h.flags & RECT_FLAG_2X) != 0;
   const bool x2Ok = !x2 || (lcdCanUpscale(tft) &&!((h.x | h.y | h.w | h.h) & 1));
+  // RECT_FLAG_XOR: o que chega é a diferença para o que já está no ecrã (ver protocol.h).
+  const bool xr = (h.flags & RECT_FLAG_XOR) != 0;
+  const bool xrOk = !xr || (!x2 && h.y + h.h <= shadowRows());
   uint32_t pixels = x2 ? (uint32_t)(h.w / 2) * (h.h / 2) : (uint32_t)h.w * h.h;
-  if (!x2Ok || !rectValid(h) || pixels > LZ4_MAX_PIXELS || h.len > LZ4_BUF) {
-    sendError(!x2Ok || !rectValid(h) || pixels > LZ4_MAX_PIXELS ? ERR_BAD_RECT : ERR_BAD_LEN, h.type);
+  if (!x2Ok || !xrOk || !rectValid(h) || pixels > LZ4_MAX_PIXELS || h.len > LZ4_BUF) {
+    sendError(!x2Ok || !xrOk || !rectValid(h) || pixels > LZ4_MAX_PIXELS ? ERR_BAD_RECT : ERR_BAD_LEN, h.type);
     skipPayload(h.len);
     return true;
   }
   if (!rxRead(lzIn, h.len)) return false;
-  if (lz4Decode(lzIn, h.len, lzOut, pixels * 2) != (int)(pixels * 2)) {
+  const int got = z ? zDecode(lzIn, h.len, lzOut, pixels * 2) : lz4Decode(lzIn, h.len, lzOut, pixels * 2);
+  if (got != (int)(pixels * 2)) {
     sendError(ERR_RLE_DECODE, h.type);
     return true;
   }
+
+#if LCD_SHADOW
+  if (xr) {   // diferença -> pixels novos, e a shadow passa a tê-los
+    uint16_t* px = (uint16_t*)lzOut;
+    for (int j = 0; j < h.h; j++) {
+      uint16_t* sh = shadowAt(h.y + j, h.x);
+      for (int i = 0; i < h.w; i++) { uint16_t v = px[j * h.w + i] ^ sh[i]; sh[i] = v; px[j * h.w + i] = v; }
+    }
+  } else if (!x2) {
+    for (int j = 0; j < h.h; j++) shadowStoreRun(h.y + j, h.x, (uint16_t*)lzOut + j * h.w, h.w);
+  }
+#endif
 
   tft.startWrite();
 #if USBD_LCD_DMA
   tft.dmaWait();
 #endif
   tft.setAddrWindow(h.x, h.y, h.w, h.h);
-  if (x2) lcdPushPixels2x(tft, (uint16_t*)lzOut, h.w / 2, h.h / 2);
-  else tft.pushPixels((uint16_t*)lzOut, pixels);
+  if (x2) {
+    lcdPushPixels2x(tft, (uint16_t*)lzOut, h.w / 2, h.h / 2);
+#if LCD_SHADOW
+    // Cada pixel de origem são 4 no ecrã: a shadow tem de ter exatamente o que o LCD mostra.
+    static uint16_t row[320];
+    for (int j = 0; j < h.h / 2; j++) {
+      const uint16_t* src = (const uint16_t*)lzOut + j * (h.w / 2);
+      for (int i = 0; i < h.w / 2; i++) row[2 * i] = row[2 * i + 1] = src[i];
+      shadowStoreRun(h.y + 2 * j, h.x, row, h.w);
+      shadowStoreRun(h.y + 2 * j + 1, h.x, row, h.w);
+    }
+#endif
+  } else {
+    tft.pushPixels((uint16_t*)lzOut, pixels);
+  }
   tft.endWrite();
   return true;
 }
@@ -732,7 +880,7 @@ static bool handlePacket(const PacketHeader& h)
     case PKT_HELLO: {
       skipPayload(h.len);
       HelloReply r = { PROTO_VERSION, (uint16_t)tft.width(), (uint16_t)tft.height(),
-                       (uint8_t)((USBD_LCD_DMA ? HELLO_FLAG_DMA : 0) | HELLO_FLAG_LZ4 | (lcdBuffered(tft) ? HELLO_FLAG_BUFFERED : 0) | (lcdCanUpscale(tft) ? HELLO_FLAG_UPSCALE : 0) | (lcdCanRotate(tft) ? HELLO_FLAG_ROTATE : 0)),
+                       (uint8_t)((USBD_LCD_DMA ? HELLO_FLAG_DMA : 0) | HELLO_FLAG_LZ4 | (lcdBuffered(tft) ? HELLO_FLAG_BUFFERED : 0) | (lcdCanUpscale(tft) ? HELLO_FLAG_UPSCALE : 0) | (lcdCanRotate(tft) ? HELLO_FLAG_ROTATE : 0) | (LCD_DEFLATE ? HELLO_FLAG_DEFLATE : 0)),
                        vp.x, vp.y, vp.w, vp.h, bootResetReason, bootRestartCause, lang,
                        (uint8_t)(LCD_TRANSPORT_UART ? TRANSPORT_UART : TRANSPORT_USB_CDC), LCD_ALIGN, rotation };
 #if LCD_WIFI
@@ -742,6 +890,7 @@ static bool handlePacket(const PacketHeader& h)
       r.wifiRssi = wl::rssi();
       wl::ip(r.wifiIp);
 #endif
+      r.shadowRows = shadowRows();
       sendReply(RSP_HELLO, &r, sizeof(r));
       return true;
     }
@@ -753,7 +902,12 @@ static bool handlePacket(const PacketHeader& h)
       return handleRle(h);
 
     case PKT_RECT_LZ4:
-      return handleLz4(h);
+      return handleCompressed(h);
+
+#if LCD_DEFLATE
+    case PKT_RECT_Z:
+      return handleCompressed(h);
+#endif
 
     case PKT_FILL: {
       uint8_t c[2];
@@ -764,6 +918,9 @@ static bool handlePacket(const PacketHeader& h)
       }
       if (!rxRead(c, 2)) return false;
       lcdFillRect(tft, h.x, h.y, h.w, h.h, (c[0] << 8) | c[1]);
+#if LCD_SHADOW
+      shadowFill(h.x, h.y, h.w, h.h, (c[0] << 8) | c[1]);
+#endif
       return true;
     }
 
@@ -846,6 +1003,30 @@ static bool handlePacket(const PacketHeader& h)
       ssid.concat((const char*)b + 1, n);
       pass.concat((const char*)b + 2 + n, b[1 + n]);
       wl::configure(ssid, pass);
+      return true;
+    }
+#endif
+
+#ifdef LCD_CHECK
+    case 0x7F: {   // diagnóstico: lê o LCD de volta e compara com a shadow
+      skipPayload(h.len);
+      static uint16_t row[320];
+      uint32_t bad = 0, total = 0, rows = tft.height(), crc = 0xFFFFFFFF, sh = shadowRows();
+      for (uint32_t y = 0; y < rows; y++) {
+        tft.readRect(0, y, tft.width(), 1, row);
+        for (int x = 0; x < tft.width(); x++) {
+          total++;
+#if LCD_SHADOW
+          if (y < sh && row[x] != *shadowAt(y, x)) bad++;
+#endif
+          const uint8_t* b = (const uint8_t*)&row[x];
+          for (int k = 0; k < 2; k++) { crc ^= b[k]; for (int j = 0; j < 8; j++) crc = (crc >> 1) ^ (0xEDB88320u & -(crc & 1)); }
+        }
+      }
+      AckReply r = {};
+      r.seq = bad; r.packets = total; r.payloadBytes = rows;
+      r.errors = ~crc;
+      sendReply(RSP_ACK, &r, sizeof(r));
       return true;
     }
 #endif
@@ -1017,6 +1198,9 @@ void setup()
 
 #if LCD_WIFI
   wl::begin();
+#endif
+#if LCD_SHADOW
+  shadowInit(SHADOW_RESERVE);   // depois do Wi-Fi: fica com o que sobrar
 #endif
 
   enterWaiting();

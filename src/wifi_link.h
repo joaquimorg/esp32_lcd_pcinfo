@@ -278,6 +278,14 @@ static void udpTask(void*)
       dgN = dgUs = txN = txUs = ringMax = 0;
     }
 #endif
+#ifdef WL_DEBUG
+    static uint32_t last2 = 0;
+    if (millis() - last2 >= 1000) {
+      last2 = millis();
+      Serial.print("HEAP free="); Serial.print(ESP.getFreeHeap()); Serial.print(" min="); Serial.print(ESP.getMinFreeHeap());
+      Serial.print(" largest="); Serial.println(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+    }
+#endif
     vTaskDelay(2);
   }
 }

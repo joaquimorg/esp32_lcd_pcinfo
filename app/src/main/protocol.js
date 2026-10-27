@@ -7,7 +7,7 @@ const MAGIC0 = 0xA5;
 const MAGIC1 = 0x5A;
 const HEADER_SIZE = 16;
 
-const PKT = { HELLO: 0x01, RECT_RAW: 0x02, RECT_RLE: 0x03, FILL: 0x04, SYNC: 0x05, SINK: 0x06, VIEWPORT: 0x07, LANG: 0x08, RECT_LZ4: 0x09, ROTATION: 0x0A, WIFI_SET: 0x0B };
+const PKT = { HELLO: 0x01, RECT_RAW: 0x02, RECT_RLE: 0x03, FILL: 0x04, SYNC: 0x05, SINK: 0x06, VIEWPORT: 0x07, LANG: 0x08, RECT_LZ4: 0x09, ROTATION: 0x0A, WIFI_SET: 0x0B, RECT_Z: 0x0C };
 const RSP = { HELLO: 0x81, ACK: 0x85, ERROR: 0x8E };
 const ERROR_NAMES = { 1: 'BAD_TYPE', 2: 'BAD_RECT', 3: 'BAD_LEN', 4: 'RLE_DECODE', 5: 'RX_TIMEOUT' };
 
@@ -30,6 +30,9 @@ function packet(type, x = 0, y = 0, w = 0, h = 0, payload = null, flags = 0) {
 // flags de PKT_RECT_LZ4: os pixels do pacote são metade da largura e da altura e o
 // ESP32 duplica-os (blocos 2x2); x, y, w, h têm de ser pares. Só com HELLO.upscale.
 const RECT_FLAG_2X = 0x01;
+// flags de PKT_RECT_LZ4: o bloco é a diferença (XOR) para o que o LCD já mostra nesse retângulo.
+// Só dentro das HELLO.shadowRows primeiras linhas (a cópia do ecrã que o ESP32 guarda na RAM).
+const RECT_FLAG_XOR = 0x02;
 const SYNC_HOLD = 0x01;   // flags do SYNC: ainda há lotes deste frame; o LCD só o mostra no último
 
 /** hold = há mais lotes deste frame a seguir: o ESP32 com framebuffer espera para mostrar tudo de uma vez. */
@@ -363,17 +366,40 @@ function dirtyRects(prev, cur, width, height, { align = 1, offX = 0, offY = 0, m
  * Pacote para um retângulo: o formato mais pequeno entre raw, RLE e LZ4
  * (este só com lz4 = true, quando o firmware o suporta).
  */
-function rectPacket(frame, stride, x, y, w, h, offX = 0, offY = 0, lz4 = false) {
+const zlib = require('zlib');
+const deflateRaw = (buf) => zlib.deflateRawSync(buf, { level: 6 });
+
+function rectPacket(frame, stride, x, y, w, h, offX = 0, offY = 0, lz4 = false, prev = null, deflate = false) {
   const px = rectPixels(frame, stride, x, y, w, h);
   const wire = toWire(px);
-  let type = PKT.RECT_RAW, data = wire;
+  let type = PKT.RECT_RAW, data = wire, flags = 0;
   const rle = rleEncode(px);
   if (rle.length < data.length) { type = PKT.RECT_RLE; data = rle; }
   if (lz4 && px.length <= LZ4_MAX_PIXELS) {
     const z = lz4Compress(wire);
     if (z.length < data.length) { type = PKT.RECT_LZ4; data = z; }
+    // Com o frame anterior (que é o que o LCD mostra): só a diferença. Num retângulo que já
+    // cabe em poucas centenas de bytes não vale a pena tentar.
+    let diff = null;
+    if (prev && data.length > 256) {
+      const before = toWire(rectPixels(prev, stride, x, y, w, h));
+      diff = Buffer.allocUnsafe(wire.length);
+      for (let i = 0; i < diff.length; i++) diff[i] = wire[i] ^ before[i];
+      const zd = lz4Compress(diff);
+      if (zd.length < data.length) { type = PKT.RECT_LZ4; data = zd; flags = RECT_FLAG_XOR; }
+    }
+    // Deflate (descodificador na ROM do ESP32): ~1,6x melhor que o LZ4 em imagens. Só se
+    // poupar mais de 10%: é mais lento a descomprimir no ESP32.
+    if (deflate && data.length > 256) {
+      const zw = deflateRaw(wire);
+      if (zw.length < data.length * 0.9) { type = PKT.RECT_Z; data = zw; flags = 0; }
+      if (diff) {
+        const zx = deflateRaw(diff);
+        if (zx.length < data.length * 0.9) { type = PKT.RECT_Z; data = zx; flags = RECT_FLAG_XOR; }
+      }
+    }
   }
-  return packet(type, x + offX, y + offY, w, h, data);
+  return packet(type, x + offX, y + offY, w, h, data, flags);
 }
 
 /** Retângulo (x, y, w, h pares) enviado a metade da resolução, em LZ4: o ESP32 duplica cada pixel. */
@@ -392,11 +418,21 @@ function halfRectPacket(frame, stride, x, y, w, h, offX = 0, offY = 0) {
  * offX/offY deslocam-no para a posição dessa área no controlador do LCD.
  * O array traz stats: { rects, changedPx, sentPx }.
  */
-function encodeFrame(prev, cur, width, height, offX = 0, offY = 0, { lz4 = false, align = 1, half = false } = {}) {
+function encodeFrame(prev, cur, width, height, offX = 0, offY = 0, { lz4 = false, align = 1, half = false, xorRows = 0, deflate = false } = {}) {
   // half: `cur` só tem blocos 2x2 de cor única nas zonas alteradas; seguem a metade da resolução.
   if (half) align = Math.max(align, 2);
-  const rects = dirtyRects(prev, cur, width, height, { align, offX, offY, maxPixels: half ? LZ4_MAX_PIXELS * 4 : LZ4_MAX_PIXELS });
-  const packets = rects.map(([x, y, w, h]) => (half ? halfRectPacket(cur, width, x, y, w, h, offX, offY) : rectPacket(cur, width, x, y, w, h, offX, offY, lz4)));
+  let rects = dirtyRects(prev, cur, width, height, { align, offX, offY, maxPixels: half ? LZ4_MAX_PIXELS * 4 : LZ4_MAX_PIXELS });
+  if (prev && xorRows && !half) {
+    // Um retângulo que atravessa a última linha com shadow parte-se aí: só a metade de cima pode ir por diferença.
+    const changedPx = rects.changedPx;
+    const cut = xorRows - offY;
+    rects = rects.flatMap(([x, y, w, h]) => (y < cut && y + h > cut ? [[x, y, w, cut - y], [x, cut, w, y + h - cut]] : [[x, y, w, h]]));
+    rects.changedPx = changedPx;
+  }
+  // xorRows: linhas do LCD (HELLO.shadowRows) cuja cópia no ESP32 permite enviar só a diferença.
+  const packets = rects.map(([x, y, w, h]) => (half
+    ? halfRectPacket(cur, width, x, y, w, h, offX, offY)
+    : rectPacket(cur, width, x, y, w, h, offX, offY, lz4, prev && y + offY + h <= xorRows ? prev : null, deflate)));
   packets.stats = { rects: rects.length, changedPx: rects.changedPx, sentPx: rects.reduce((n, r) => n + r[2] * r[3], 0) };
   return packets;
 }
@@ -472,6 +508,9 @@ function parseHello(p) {
     rotation: p.length >= 20 ? p[19] & 3 : 0,
     // Wi-Fi (só firmwares com HELLO_FLAG_WIFI): state 0 desligado, 1 a ligar, 2 ligado, 3 falhou.
     wifiCapable: !!(p[5] & 32),
+    deflate: !!(p[5] & 64),   // aceita PKT_RECT_Z
+    // Linhas do LCD (a partir do topo) com cópia na RAM do ESP32: aceitam RECT_FLAG_XOR.
+    shadowRows: p.length >= 28 ? p.readUInt16LE(26) : 0,
     wifi: p.length >= 26 ? { state: p[20], rssi: p.readInt8(21), ip: p[20] === 2 ? `${p[22]}.${p[23]}.${p[24]}.${p[25]}` : null } : null,
   };
 }
@@ -510,6 +549,6 @@ function parseError(p) {
 }
 
 module.exports = {
-  PKT, RSP, SYNC_HOLD, RECT_FLAG_2X, packet, syncPacket, bgraToRgb565, rectPixels, toWire, rleEncode, rleDecode,
+  PKT, RSP, SYNC_HOLD, RECT_FLAG_2X, RECT_FLAG_XOR, packet, syncPacket, bgraToRgb565, rectPixels, toWire, rleEncode, rleDecode,
   dirtyRects, splitRect, alignRect, alignViewport, rectPacket, lz4Compress, lz4Decompress, LZ4_MAX_PIXELS, encodeFrame, fillPacket, ReplyParser, parseHello, wifiSetPacket, parseAck, parseError, describeReset, LCD_LANGS,
 };

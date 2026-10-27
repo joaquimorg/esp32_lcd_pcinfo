@@ -33,7 +33,7 @@ const CLOSE_DRAIN_MS = 500;
 const MAX_IN_FLIGHT = 1;
 // Por Wi-Fi o transporte tem controlo de fluxo próprio (janela + retransmissão) e o buffer
 // do ESP32 é maior: dois lotes seguidos mantêm o rádio ocupado enquanto o primeiro se desenha.
-const WIFI_IN_FLIGHT = 2;
+const WIFI_IN_FLIGHT = 3;
 const WIFI_PROVISION_MS = 25000;   // tempo para a placa se ligar à rede depois de receber as credenciais
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
