@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('api', {
   stepScreen: (dir) => ipcRenderer.send('player:step', dir),
   setCalibration: (on) => ipcRenderer.send('calibration:set', on),
   listPorts: () => ipcRenderer.invoke('ports:list'),
+  provisionWifi: (ssid, password) => ipcRenderer.invoke('wifi:provision', { ssid, password }),
 
   exportScreen: (id) => ipcRenderer.invoke('screen:export', id),
   importScreens: () => ipcRenderer.invoke('screen:import'),

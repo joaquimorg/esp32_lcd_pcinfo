@@ -12,6 +12,9 @@ const KEEPALIVE_MS = 1000;
 // travado durante muito tempo, com respostas a sair ao mesmo tempo, acabava
 // por encravar (dados perdidos, ESP32 a reiniciar), por exemplo com GIFs.
 const BATCH_BYTES = 16 * 1024;
+// Por Wi-Fi o anel do ESP32 é de 64 KB e o transporte controla a janela: lotes maiores,
+// com dois em voo (ver Device.maxInFlight), mantêm o rádio ocupado.
+const WIFI_BATCH_BYTES = 24 * 1024;
 
 // "Fluidez das animações": nas zonas que mexem muito (animações, GIFs, transições) manda-se
 // menos informação: metade da resolução (o ESP32 duplica os pixels, se o suportar) e/ou menos
@@ -201,7 +204,7 @@ class FrameSender {
     this.lastSent = frame;
     this.needsClear = false;
     if (!packets.length) return false;
-    this.batches = batchPackets(packets);
+    this.batches = batchPackets(packets, this.device.info?.transport === 'wifi' ? WIFI_BATCH_BYTES : BATCH_BYTES);
     this.counters.frames++;
     return true;
   }

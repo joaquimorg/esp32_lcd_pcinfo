@@ -32,6 +32,13 @@
 #include <Preferences.h>
 #include "protocol.h"
 
+#ifndef LCD_WIFI
+#define LCD_WIFI 0
+#endif
+#if LCD_WIFI
+#include "wifi_link.h"
+#endif
+
 #ifndef LCD_TRANSPORT_UART
 #define LCD_TRANSPORT_UART 0
 #endif
@@ -154,6 +161,11 @@ static struct {
 
 static uint32_t lastRxMs = 0;   // 0 = ainda não chegou nada
 
+// De onde vieram os últimos bytes (e para onde vão as respostas). Com Wi-Fi há dois
+// canais; um pacote vem sempre de um só (a app só usa um de cada vez).
+enum { SRC_SERIAL, SRC_WIFI };
+static uint8_t lastSrc = SRC_SERIAL;
+
 static void transportBegin()
 {
   Serial.setRxBufferSize(RX_RING_SIZE);   // antes do begin()
@@ -167,13 +179,37 @@ static bool rxRead(void* dst, size_t n, uint32_t timeoutMs = RX_TIMEOUT_MS)
   uint32_t lastData = millis();
 
   while (n) {
+#if LCD_WIFI
+    // Sessão Wi-Fi nova: o que sobrou da anterior perde-se, e um pacote a meio falha já
+    // (senão os bytes da sessão nova seriam lidos como pixels da antiga).
+    if (wl::takeAbort() && timeoutMs) return false;
+    // Uma perda no Wi-Fi demora a recuperar (retransmissão); a meio de um pacote não se desiste cedo.
+    if (timeoutMs && lastSrc == SRC_WIFI) timeoutMs = max<uint32_t>(timeoutMs, 3000);
+    // Só entre pacotes (à espera de cabeçalho) se aceita qualquer canal; a meio, o do pacote.
+    if (!timeoutMs || lastSrc == SRC_WIFI) {
+      size_t k = wl::read(out, n);
+      if (k) {
+        lastSrc = SRC_WIFI;
+        out += k; n -= k;
+        lastData = lastRxMs = millis();
+        continue;
+      }
+    }
+    if (!timeoutMs || lastSrc == SRC_SERIAL) {
+#endif
     int avail = Serial.available();
     if (avail > 0) {
       size_t k = Serial.readBytes(out, min<size_t>(n, avail));
+#if LCD_WIFI
+      lastSrc = SRC_SERIAL;
+#endif
       out += k; n -= k;
       lastData = lastRxMs = millis();
       continue;
     }
+#if LCD_WIFI
+    }
+#endif
 
     uint32_t idle = millis() - lastData;
     if (timeoutMs && idle > timeoutMs) return false;
@@ -186,6 +222,12 @@ static bool rxRead(void* dst, size_t n, uint32_t timeoutMs = RX_TIMEOUT_MS)
 
 static void txWrite(const void* data, size_t n)
 {
+#if LCD_WIFI
+  if (lastSrc == SRC_WIFI) {
+    wl::write(data, n);
+    return;
+  }
+#endif
   Serial.write((const uint8_t*)data, n);
 }
 
@@ -693,6 +735,13 @@ static bool handlePacket(const PacketHeader& h)
                        (uint8_t)((USBD_LCD_DMA ? HELLO_FLAG_DMA : 0) | HELLO_FLAG_LZ4 | (lcdBuffered(tft) ? HELLO_FLAG_BUFFERED : 0) | (lcdCanUpscale(tft) ? HELLO_FLAG_UPSCALE : 0) | (lcdCanRotate(tft) ? HELLO_FLAG_ROTATE : 0)),
                        vp.x, vp.y, vp.w, vp.h, bootResetReason, bootRestartCause, lang,
                        (uint8_t)(LCD_TRANSPORT_UART ? TRANSPORT_UART : TRANSPORT_USB_CDC), LCD_ALIGN, rotation };
+#if LCD_WIFI
+      r.flags |= HELLO_FLAG_WIFI;
+      if (lastSrc == SRC_WIFI) r.transport = TRANSPORT_WIFI;
+      r.wifiState = wl::state();
+      r.wifiRssi = wl::rssi();
+      wl::ip(r.wifiIp);
+#endif
       sendReply(RSP_HELLO, &r, sizeof(r));
       return true;
     }
@@ -777,6 +826,29 @@ static bool handlePacket(const PacketHeader& h)
         enterWaiting();   // redesenha o ecrã de espera e obriga a app a reenviar o frame
       }
       return true;
+
+#if LCD_WIFI
+    case PKT_WIFI_SET: {
+      uint8_t b[2 + 32 + 64];
+      // [u8 n][ssid n][u8 m][palavra-passe m]
+      if (h.len < 2 || h.len > sizeof(b)) {
+        sendError(ERR_BAD_LEN, h.type);
+        skipPayload(h.len);
+        return true;
+      }
+      if (!rxRead(b, h.len)) return false;
+      uint8_t n = b[0];
+      if (n > 32 || 1 + n >= h.len || b[1 + n] > 63 || 2u + n + b[1 + n] != h.len) {
+        sendError(ERR_BAD_LEN, h.type);
+        return true;
+      }
+      String ssid, pass;
+      ssid.concat((const char*)b + 1, n);
+      pass.concat((const char*)b + 2 + n, b[1 + n]);
+      wl::configure(ssid, pass);
+      return true;
+    }
+#endif
 
     case PKT_SINK:
       skipPayload(h.len);
@@ -941,6 +1013,10 @@ void setup()
     chunkBuf[i] = (uint16_t*)heap_caps_malloc(CHUNK_PIXELS * 2, MALLOC_CAP_DMA);
   }
   tft.initDMA();
+#endif
+
+#if LCD_WIFI
+  wl::begin();
 #endif
 
   enterWaiting();

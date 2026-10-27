@@ -34,13 +34,72 @@ function renderSensorSettings() {
   );
 }
 
+// Estado do formulário Wi-Fi. A palavra-passe fica só aqui (memória da janela): vai para a placa
+// e nunca para a configuração.
+const wifiForm = { password: '', busy: false, message: '', error: false };
+
 function renderConnectionSettings() {
   const box = $('#settingsConnection');
   box.innerHTML = '';
+  const wifi = config.link === 'wifi';
   box.append(
+    field(t('settings.link'), choiceInput(wifi ? 'wifi' : 'serial',
+      [['serial', t('settings.link.serial')], ['wifi', t('settings.link.wifi')]], (v) => {
+        config.link = v;
+        commit();
+        renderConnectionSettings();
+      })),
+    ...(wifi ? wifiSettings() : []),
     field(t('settings.port'), portPicker()),
     field(t('settings.fps'), numberInput(config.frameRate, (v) => { config.frameRate = clamp(Math.round(v), 1, 60); commit(); }, { min: 1, max: 60 })),
   );
+}
+
+function wifiSettings() {
+  if (!config.wifi) config.wifi = { host: '', ssid: '' };
+  const configure = async () => {
+    const ssid = (config.wifi.ssid || '').trim();
+    if (!ssid || wifiForm.busy) return;
+    wifiForm.busy = true;
+    wifiForm.message = t('wifi.configuring');
+    wifiForm.error = false;
+    renderConnectionSettings();
+    const res = await ipc.provisionWifi(ssid, wifiForm.password);
+    wifiForm.busy = false;
+    wifiForm.error = !res.ok;
+    wifiForm.message = res.ok ? t('wifi.done', { ip: res.ip, rssi: res.rssi }) : res.error;
+    if (res.ok) {
+      config.wifi.host = res.ip;
+      commit();
+    }
+    renderConnectionSettings();
+  };
+  return [
+    field(t('wifi.ssid'), textInput(config.wifi.ssid, (v) => { config.wifi.ssid = v; commit(); })),
+    field(t('wifi.password'), h('input', {
+      type: 'password', value: wifiForm.password, autocomplete: 'off',
+      oninput: (e) => { wifiForm.password = e.target.value; },
+    })),
+    h('div', { class: 'port-row' },
+      h('button', { class: 'btn', disabled: wifiForm.busy, onclick: configure }, t('wifi.configure'))),
+    wifiForm.message ? h('p', { class: 'desc', style: wifiForm.error ? 'color:#e57373' : '' }, wifiForm.message) : null,
+    field(t('wifi.host'), textInput(config.wifi.host, (v) => { config.wifi.host = v.trim(); commit(); })),
+    h('p', { class: 'desc', id: 'wifiStatus' }),
+    h('p', { class: 'desc' }, t('wifi.help')),
+  ].filter(Boolean);
+}
+
+/** Linha de estado do Wi-Fi (chamado a cada estado). */
+function updateWifiStatus(device) {
+  const el = $('#wifiStatus');
+  if (!el) return;
+  if (device.connected && device.transport === 'wifi') {
+    el.textContent = t('wifi.status.connected', { ip: device.wifi && device.wifi.ip, rssi: device.wifi && device.wifi.rssi });
+  } else if (config.wifi && config.wifi.host) {
+    el.textContent = t('wifi.status.waiting', { ip: config.wifi.host });
+  } else {
+    el.textContent = t('wifi.status.noHost');
+  }
 }
 
 function renderAbout() {

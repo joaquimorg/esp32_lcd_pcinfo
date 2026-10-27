@@ -7,7 +7,7 @@ const MAGIC0 = 0xA5;
 const MAGIC1 = 0x5A;
 const HEADER_SIZE = 16;
 
-const PKT = { HELLO: 0x01, RECT_RAW: 0x02, RECT_RLE: 0x03, FILL: 0x04, SYNC: 0x05, SINK: 0x06, VIEWPORT: 0x07, LANG: 0x08, RECT_LZ4: 0x09, ROTATION: 0x0A };
+const PKT = { HELLO: 0x01, RECT_RAW: 0x02, RECT_RLE: 0x03, FILL: 0x04, SYNC: 0x05, SINK: 0x06, VIEWPORT: 0x07, LANG: 0x08, RECT_LZ4: 0x09, ROTATION: 0x0A, WIFI_SET: 0x0B };
 const RSP = { HELLO: 0x81, ACK: 0x85, ERROR: 0x8E };
 const ERROR_NAMES = { 1: 'BAD_TYPE', 2: 'BAD_RECT', 3: 'BAD_LEN', 4: 'RLE_DECODE', 5: 'RX_TIMEOUT' };
 
@@ -439,6 +439,13 @@ class ReplyParser {
   }
 }
 
+/** PKT_WIFI_SET: SSID e palavra-passe (ssid vazio desliga o Wi-Fi da placa). */
+function wifiSetPacket(ssid, password = '') {
+  const s = Buffer.from(ssid, 'utf8'), w = Buffer.from(password, 'utf8');
+  if (s.length > 32 || w.length > 63) throw new Error('SSID até 32 e palavra-passe até 63 bytes');
+  return packet(PKT.WIFI_SET, 0, 0, 0, 0, Buffer.concat([Buffer.from([s.length]), s, Buffer.from([w.length]), w]));
+}
+
 function parseHello(p) {
   return {
     version: p[0],
@@ -457,12 +464,15 @@ function parseHello(p) {
     // Idioma do ecrã de espera guardado no ESP32 (LANG_*), ou null em firmwares antigos.
     lang: p.length >= 17 ? p[16] : null,
     // Como o ESP32 está ligado ao PC (TRANSPORT_*); firmwares antigos usam o USB nativo.
-    transport: p.length >= 18 && p[17] === 1 ? 'uart' : 'usb',
+    transport: p.length >= 18 ? ({ 1: 'uart', 2: 'wifi' }[p[17]] || 'usb') : 'usb',
     // 2 = o LCD só aceita retângulos com x, y, largura e altura pares (AMOLED).
     align: p.length >= 19 && p[18] >= 2 ? p[18] : 1,
     // Rotação do LCD (0..3, x90°); rotatable = aceita PKT_ROTATION (firmwares antigos: não).
     rotatable: !!(p[5] & 16),
     rotation: p.length >= 20 ? p[19] & 3 : 0,
+    // Wi-Fi (só firmwares com HELLO_FLAG_WIFI): state 0 desligado, 1 a ligar, 2 ligado, 3 falhou.
+    wifiCapable: !!(p[5] & 32),
+    wifi: p.length >= 26 ? { state: p[20], rssi: p.readInt8(21), ip: p[20] === 2 ? `${p[22]}.${p[23]}.${p[24]}.${p[25]}` : null } : null,
   };
 }
 
@@ -501,5 +511,5 @@ function parseError(p) {
 
 module.exports = {
   PKT, RSP, SYNC_HOLD, RECT_FLAG_2X, packet, syncPacket, bgraToRgb565, rectPixels, toWire, rleEncode, rleDecode,
-  dirtyRects, splitRect, alignRect, alignViewport, rectPacket, lz4Compress, lz4Decompress, LZ4_MAX_PIXELS, encodeFrame, fillPacket, ReplyParser, parseHello, parseAck, parseError, describeReset, LCD_LANGS,
+  dirtyRects, splitRect, alignRect, alignViewport, rectPacket, lz4Compress, lz4Decompress, LZ4_MAX_PIXELS, encodeFrame, fillPacket, ReplyParser, parseHello, wifiSetPacket, parseAck, parseError, describeReset, LCD_LANGS,
 };

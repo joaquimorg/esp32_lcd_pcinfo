@@ -137,6 +137,7 @@ function onPaint(image) {
   }
 }
 
+const linkSetting = () => ({ mode: config.link === 'wifi' ? 'wifi' : 'serial', host: (config.wifi && config.wifi.host) || '' });
 const rotationSetting = () => (Number.isInteger(config.rotation) ? config.rotation & 3 : 0);
 
 /** Área visível: a configurada na app ou, em automático, o controlador inteiro. */
@@ -488,6 +489,7 @@ function applyConfig(next) {
     device.setRotation(rotationSetting());
   }
   if (prev.port !== config.port) device.setPortSetting(config.port || 'auto');
+  if (prev.link !== config.link || (prev.wifi && prev.wifi.host) !== (config.wifi && config.wifi.host)) device.setLink(linkSetting());
   if (prev.startWithWindows !== config.startWithWindows) applyLoginItem();
   if (JSON.stringify(prev.display) !== JSON.stringify(config.display)) applyGeometry();
   stampDesign();
@@ -516,6 +518,16 @@ ipcMain.on('player:show', (_e, id) => {
 });
 ipcMain.on('player:step', (_e, dir) => stepScreen(dir));
 ipcMain.on('calibration:set', (_e, on) => setCalibrating(on));
+// Configura o Wi-Fi da placa pelo cabo. Devolve o IP; é a janela que o guarda na configuração
+// (se fosse aqui, a cópia dela ficava desatualizada e o apagava no próximo commit).
+ipcMain.handle('wifi:provision', async (_e, { ssid, password }) => {
+  try {
+    const res = await device.provisionWifi(String(ssid || ''), String(password || ''));
+    return { ok: true, ip: res.ip, rssi: res.rssi };
+  } catch (err) {
+    return { ok: false, error: errorText(err) };
+  }
+});
 ipcMain.handle('ports:list', async () => {
   const ports = await listPorts().catch(() => []);
   return ports.map((p) => ({ ...p, connected: p.path === device.info?.path, last: p.path === state.lastPort }));
@@ -674,7 +686,7 @@ device.on('connected', (info) => {
   deviceErrors = 0;
   controller = { width: info.width, height: info.height };
   deviceAlign = info.align || 1;
-  state.lastPort = info.path;
+  if (info.transport !== 'wifi') state.lastPort = info.path;   // a porta série, não o IP
   state.controller = controller;
   store.saveState(state);
   applyGeometry();
@@ -731,7 +743,7 @@ app.whenReady().then(() => {
   sensors.configure({ lhmUrl: config.lhmUrl, intervalMs: config.sensorIntervalMs, language: config.language });
   sensors.start();
   applyLoginItem();
-  device.start({ portSetting: config.port || 'auto', lastPort: state.lastPort });
+  device.start({ portSetting: config.port || 'auto', lastPort: state.lastPort, link: linkSetting() });
 
   player.update(config.screens);
   createDisplayWindow();

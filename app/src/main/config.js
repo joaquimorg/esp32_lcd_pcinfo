@@ -59,6 +59,10 @@ function defaultConfig() {
     animQuality: 'quality',
     // Rotação do LCD em passos de 90° (0..3). Só placas com TFT_eSPI (ver PKT_ROTATION).
     rotation: 0,
+    // Ligação ao LCD: 'serial' (cabo USB) ou 'wifi' (UDP para wifi.host; a placa é configurada com o
+    // cabo, ver Device.provisionWifi). A palavra-passe do Wi-Fi nunca se guarda aqui: fica na placa.
+    link: 'serial',
+    wifi: { host: '', ssid: '' },
     screens: [
       monitor('CPU', 'Ryzen 5', '/amdcpu/0/temperature/2', '/amdcpu/0/load/0', '/amdcpu/0/power/0'),
       monitor('GPU', 'RX 580', '/gpu-amd/0/temperature/0', '/gpu-amd/0/load/0', '/gpu-amd/0/power/3'),

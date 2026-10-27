@@ -167,7 +167,7 @@ body { display: flex; flex-direction: column; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: end; }
 .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .grid4 .field > label { font-size: 11px; }
-input[type=text], input[type=number], input[type=search], select {
+input[type=text], input[type=password], input[type=number], input[type=search], select {
   width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line);
   border-radius: 6px; padding: 6px 8px; font: inherit; min-width: 0;
 }

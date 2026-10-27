@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.14.0
+
+**Wi-Fi link for the CYD**
+- **Settings → ESP32 connection → Link to the display**: *USB cable* or *Wi-Fi*.
+  With Wi-Fi the CYD is configured once over the cable (network + password, stored
+  in the board's flash; the app never keeps the password) and then the app talks
+  to it by UDP. Measured on the same CYD with the real app pipeline: a full-screen
+  animation goes from 6.5 to 19.8 fps and small updates from 35 to 46 fps. Both links
+  stay available; switching is a setting.
+- A reliable byte stream over UDP (sequence numbers, selective acks, fast
+  retransmission, flow control tied to the board's 64 KB ring; described in
+  `src/protocol.h`), because TCP on the Arduino core has a fixed 5760-byte window
+  that limited it to ~0.3 MB/s. New `PKT_WIFI_SET`; the HELLO reply carries the
+  Wi-Fi state, RSSI and IP.
+- Over Wi-Fi the app keeps two batches in flight (24 KB each) instead of one.
+- The Wi-Fi radio and the receive ring (64 KB) only exist once a network is
+  configured, so the CYD without Wi-Fi pays nothing.
+- The link is unencrypted: meant for a trusted local network.
+
 ## 0.13.1
 
 **Lower memory use**

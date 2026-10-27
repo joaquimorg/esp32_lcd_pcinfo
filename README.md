@@ -102,7 +102,7 @@ need a new environment.
 | Environment | Board | Display | PC link |
 |---|---|---|---|
 | `lolin_s2_mini` | [LOLIN (WEMOS) S2 Mini](https://www.wemos.cc/en/latest/s2/s2_mini.html) (ESP32-S2) | 240×320 SPI, ST7789 | native USB |
-| `cyd28_ili9341` | ESP32 CYD 2.8" (ESP32-2432S028R) | 240×320, ILI9341 | USB-serial chip (CH340/CP210x), 2000000 baud |
+| `cyd28_ili9341` | ESP32 CYD 2.8" (ESP32-2432S028R) | 240×320, ILI9341 | USB-serial chip (CH340/CP210x), 2000000 baud, or Wi-Fi |
 | `cyd28_st7789` | the same CYD, ST7789 variant | 240×320, ST7789 | as above |
 | `waveshare_amoled_206` | Waveshare ESP32-S3-Touch-AMOLED-2.06 (ESP32-S3R8) | 410×502 AMOLED, CO5300 over QSPI | native USB |
 
@@ -143,6 +143,25 @@ in **Settings → ESP32 connection**.
 
 The CYD has no flow control on the serial link, so it relies on the app sending
 one batch at a time and waiting for the ACK (see [How it works](#how-it-works)).
+
+### Wi-Fi (CYD)
+
+The serial cable limits the CYD to about 0.15 MB/s. The CYD firmware can also
+talk **over Wi-Fi** (2.4 GHz), which in the same animation test is about 3× faster
+(full-screen animation 6.5 → 19.8 fps; the radio varies from run to run, 0.35–0.65 MB/s):
+
+1. Plug the CYD in by USB once and open **Settings → ESP32 connection**.
+2. Set **Link to the display** to *Wi-Fi*, type the network name and password and
+   press **Set up the board**. The board stores them in its flash (the app never
+   does) and the app keeps the board's IP address.
+3. From then on the cable is only a power supply: the app talks to the board by
+   UDP port 7878. To go back, set the link to *USB cable* (both always work).
+
+Notes: the link is not encrypted or authenticated (meant for a trusted local
+network); some routers isolate Wi-Fi clients (guest networks); the app is the
+one that connects, so allow it through the Windows firewall if asked. The radio
+is only started once a network has been configured. Wi-Fi is in the CYD
+firmware only; the S2 Mini and the AMOLED board keep their native USB.
 
 ## Getting started
 

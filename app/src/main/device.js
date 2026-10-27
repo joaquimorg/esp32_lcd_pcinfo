@@ -3,6 +3,7 @@
 const { EventEmitter } = require('events');
 const { SerialPort } = require('serialport');
 const P = require('./protocol');
+const { UdpLink } = require('./udp-link');
 
 const ESPRESSIF_VID = '303a';
 // PIDs Espressif que nunca correm este firmware (que usa o USB nativo do S2):
@@ -30,6 +31,10 @@ const CLOSE_DRAIN_MS = 500;
 // a caminho enquanto o ESP32 desenha o anterior, o buffer dele enchia e o USB
 // ficava travado com respostas a sair ao mesmo tempo, o que encrava o S2.
 const MAX_IN_FLIGHT = 1;
+// Por Wi-Fi o transporte tem controlo de fluxo próprio (janela + retransmissão) e o buffer
+// do ESP32 é maior: dois lotes seguidos mantêm o rádio ocupado enquanto o primeiro se desenha.
+const WIFI_IN_FLIGHT = 2;
+const WIFI_PROVISION_MS = 25000;   // tempo para a placa se ligar à rede depois de receber as credenciais
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -62,12 +67,22 @@ class Device extends EventEmitter {
     // (reiniciaria esse aparelho) até serem desligadas.
     this.notLcd = new Set();
     this.stopped = false;
+    this.link = { mode: 'serial', host: '' };   // 'serial' (cabo) ou 'wifi' (UDP para host)
   }
 
-  start({ portSetting = 'auto', lastPort = null } = {}) {
+  start({ portSetting = 'auto', lastPort = null, link = null } = {}) {
     this.portSetting = portSetting;
     this.lastPort = lastPort;
+    if (link) this.link = { mode: link.mode === 'wifi' ? 'wifi' : 'serial', host: link.host || '' };
     this._loop();
+  }
+
+  /** Cabo série ou Wi-Fi. Mudar de um para o outro fecha a ligação atual; a seguinte abre a nova. */
+  setLink({ mode, host = '' }) {
+    const next = { mode: mode === 'wifi' ? 'wifi' : 'serial', host };
+    if (next.mode === this.link.mode && next.host === this.link.host) return;
+    this.link = next;
+    if (this.port) this.port.close();
   }
 
   /**
@@ -95,8 +110,13 @@ class Device extends EventEmitter {
     return !!(this.port && this.info);
   }
 
+  /** Lotes (frame-sender) que podem estar por confirmar ao mesmo tempo. */
+  get maxInFlight() {
+    return this.info?.transport === 'wifi' ? WIFI_IN_FLIGHT : MAX_IN_FLIGHT;
+  }
+
   canSend() {
-    return this.ready && !this.stopped && this.inFlight.length < MAX_IN_FLIGHT;
+    return this.ready && !this.stopped && this.inFlight.length < this.maxInFlight;
   }
 
   /** Diz ao ESP32 qual é a área visível do painel (usada no ecrã de espera). */
@@ -129,6 +149,36 @@ class Device extends EventEmitter {
     } catch (err) {
       this.emit('log', `rotação: ${err.message}`);
     }
+  }
+
+  /**
+   * Dá à placa o SSID e a palavra-passe do Wi-Fi (precisa do cabo) e espera que se ligue à rede.
+   * Usa a ligação série atual se houver; senão abre a porta à parte (estando em modo Wi-Fi o
+   * Device não tem o cabo aberto). Devolve { ip, rssi }; falha com err.key (chave de i18n).
+   */
+  async provisionWifi(ssid, password) {
+    const pkt = P.wifiSetPacket(ssid, password);
+    if (this.port && this.info && this.info.transport !== 'wifi') {
+      if (!this.info.wifiCapable) throw keyed('wifi.err.noFirmware');
+      this.port.write(pkt);
+      return waitForWifi(() => this._helloOnce());
+    }
+    const path = await this._serialPathForProvisioning();
+    return withSerial(path, async ({ ask, send }) => {
+      const hello = P.parseHello(await retry(() => ask(P.packet(P.PKT.HELLO), P.RSP.HELLO), UART_HELLO_TRIES));
+      if (!hello.wifiCapable) throw keyed('wifi.err.noFirmware');
+      send(pkt);
+      return waitForWifi(async () => P.parseHello(await ask(P.packet(P.PKT.HELLO), P.RSP.HELLO)));
+    });
+  }
+
+  async _serialPathForProvisioning() {
+    if (this.portSetting && this.portSetting !== 'auto') return this.portSetting;
+    if (this.lastPort) return this.lastPort;
+    const list = await withTimeout(SerialPort.list(), PORT_OP_TIMEOUT_MS, 'listar portas').catch(() => []);
+    const p = list.find((x) => isAutoCandidate(x));
+    if (!p) throw keyed('wifi.err.noSerial');
+    return p.path;
   }
 
   /** Envia os pacotes de um frame seguidos de SYNC; o ACK liberta o próximo. */
@@ -194,7 +244,36 @@ class Device extends EventEmitter {
     return path === this.lastPort || (this.portSetting !== 'auto' && path === this.portSetting);
   }
 
+  /** Wi-Fi: sessão UDP para o IP guardado. Sem IP espera pela configuração da placa. */
+  async _connectWifi() {
+    const host = this.link.host;
+    if (!host) return;
+    const link = new UdpLink({ host });
+    link.on('error', () => {});
+    try {
+      await new Promise((resolve, reject) => link.open((err) => (err ? reject(err) : resolve())));
+    } catch (err) {
+      this.emit('log', `Wi-Fi ${host}: ${err.message}`);
+      return;
+    }
+    if (this.stopped || this.link.host !== host) {
+      await closePort(link);
+      return;
+    }
+    this._attach(link);
+    try {
+      const hello = await this._hello(2);
+      this.info = { ...hello, path: link.path };
+      this.lastAckAt = Date.now();
+      this.emit('connected', this.info);
+    } catch {
+      this._detach();
+      await closePort(link);
+    }
+  }
+
   async _connect() {
+    if (this.link.mode === 'wifi') return this._connectWifi();
     for (const { path, uart } of await this._candidates()) {
       if (this.stopped) return;
       const port = new SerialPort({ path, baudRate: UART_BAUD, autoOpen: false });
@@ -236,6 +315,13 @@ class Device extends EventEmitter {
   /** Fecha a ligação atual e reinicia o ESP32. */
   async _recover(path, reason) {
     const port = this.port;
+    if (port instanceof UdpLink) {   // Wi-Fi: não há ESP32 a reiniciar por RTS; uma sessão nova chega
+      const wasReady = this.ready;
+      this._detach();
+      if (wasReady) this.emit('disconnected');
+      await closePort(port);
+      return;
+    }
     const uart = this.info?.transport === 'uart';
     const wasReady = this.ready;
     this._detach();
@@ -350,6 +436,63 @@ function isUartPort(p) {
   return !!vid && vid !== ESPRESSIF_VID;
 }
 
+function keyed(key) {
+  return Object.assign(new Error(key), { key });
+}
+
+async function retry(fn, tries) {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i >= tries) throw err;
+    }
+  }
+}
+
+/** Repete o HELLO até a placa dizer que está ligada (ou que falhou). hello() -> HELLO já lido. */
+async function waitForWifi(hello) {
+  const until = Date.now() + WIFI_PROVISION_MS;
+  while (Date.now() < until) {
+    await sleep(1000);
+    let h;
+    try {
+      h = await hello();
+    } catch {
+      continue;
+    }
+    if (h.wifi && h.wifi.state === 2 && h.wifi.ip) return { ip: h.wifi.ip, rssi: h.wifi.rssi };
+    if (h.wifi && h.wifi.state === 3) throw keyed('wifi.err.failed');
+  }
+  throw keyed('wifi.err.timeout');
+}
+
+/** Abre uma porta série só para uma conversa curta (pedido/resposta) e fecha-a. */
+async function withSerial(path, fn) {
+  const port = new SerialPort({ path, baudRate: UART_BAUD, autoOpen: false });
+  port.on('error', () => {});
+  await openPort(port);
+  try {
+    await releaseResetLines(port);
+    const parser = new P.ReplyParser();
+    const waiting = [];
+    port.on('data', (chunk) => {
+      for (const r of parser.push(chunk)) {
+        const i = waiting.findIndex((w) => w.type === r.type);
+        if (i >= 0) waiting.splice(i, 1)[0].resolve(r.payload);
+      }
+    });
+    const ask = (pkt, type, ms = HELLO_TIMEOUT_MS) => new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('sem resposta')), ms);
+      waiting.push({ type, resolve: (payload) => { clearTimeout(timer); resolve(payload); } });
+      port.write(pkt);
+    });
+    return await fn({ ask, send: (pkt) => port.write(pkt) });
+  } finally {
+    await closePort(port);
+  }
+}
+
 /** Portas onde a procura automática experimenta o HELLO. */
 function isAutoCandidate(p) {
   const vid = (p.vendorId || '').toLowerCase();
@@ -435,4 +578,4 @@ function closePort(port) {
   return withTimeout(closed, PORT_OP_TIMEOUT_MS, `fechar ${port.path}`).catch(() => {});
 }
 
-module.exports = { Device, listPorts, describePort, isAutoCandidate, isUartPort };
+module.exports = { Device, listPorts, describePort, isAutoCandidate, isUartPort, withSerial };

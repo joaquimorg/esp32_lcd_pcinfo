@@ -42,6 +42,31 @@
 // app/src/main/device.js (UART_BAUD) e tools/usb_display_bench.py.
 #define UART_BAUD     2000000
 
+/*
+ * Transporte Wi-Fi: o mesmo fluxo de bytes (pacotes PC -> ESP32 e respostas) sobre UDP, com
+ * retransmissão seletiva, porque a janela TCP do Arduino (5760 bytes) limita-o a ~0,3 MB/s.
+ * O PC inicia sempre. Tudo little-endian; o espelho do lado do PC é app/src/main/udp-link.js.
+ *
+ *   PC -> ESP32  'X' sid:u16                                 nova sessão (repete até chegar 'Y')
+ *   ESP32 -> PC  'Y' sid:u16 rxBase:u32 txBase:u32 ring:u32  rxBase = offset do primeiro byte PC->ESP32,
+ *                                                            txBase = o do primeiro byte ESP32->PC,
+ *                                                            ring = bytes que o ESP32 guarda por ler
+ *   PC -> ESP32  'D' flags:u8 sid:u16 off:u32 rAck:u32 dados  off = offset do 1.º byte dos dados;
+ *                                                            rAck = bytes ESP32->PC já recebidos;
+ *                                                            flags bit0 = POLL (responder já com 'A');
+ *                                                            sem dados serve de keepalive/confirmação
+ *   ESP32 -> PC  'A' flags:u8 sid:u16 contig:u32 consumed:u32 n:u8 {ini:u32 fim:u32}*n  contadores:3*u16
+ *                                                            contig = tudo antes disto chegou; consumed =
+ *                                                            lido pelo parser (o PC não pode enviar para
+ *                                                            lá de consumed+ring); n<=4 blocos SACK
+ *   ESP32 -> PC  'R' flags:u8 sid:u16 off:u32 dados          respostas, reenviadas até o PC as confirmar
+ *                                                            (rAck); só se aceita a que está em ordem
+ * Datagramas de outra sessão ou de outro endereço são ignorados.
+ */
+#define WIFI_UDP_PORT   7878
+#define WIFI_PAYLOAD    1400
+#define WIFI_RING_SIZE  65536
+
 enum PacketType : uint8_t {
   PKT_HELLO    = 0x01,  // sem payload -> RSP_HELLO
   PKT_RECT_RAW = 0x02,  // payload: w*h*2 bytes
@@ -53,6 +78,9 @@ enum PacketType : uint8_t {
                         // guardada na flash, usada pelo ecrã de espera
   PKT_LANG     = 0x08,  // x = idioma do ecrã de espera (LANG_*), sem payload;
                         // guardado na flash
+  PKT_WIFI_SET = 0x0B,  // payload: [u8 n][ssid n][u8 m][palavra-passe m]; guarda na flash e liga.
+                        // ssid vazio desliga o Wi-Fi. Só se HELLO.flags tiver HELLO_FLAG_WIFI.
+                        // O estado vê-se no HELLO (wifiState, wifiRssi, wifiIp)
   PKT_ROTATION = 0x0A,  // x = rotação do LCD (0..3, x90°), sem payload; guardada na flash.
                         // Só se HELLO.flags tiver HELLO_FLAG_ROTATE. O ecrã passa a ter outro
                         // tamanho: a app deve repetir o HELLO
@@ -69,6 +97,7 @@ enum PacketType : uint8_t {
 #define HELLO_FLAG_BUFFERED 0x04   // tem framebuffer: mostra cada frame de uma vez (ver SYNC_HOLD)
 #define HELLO_FLAG_UPSCALE  0x08   // aceita RECT_FLAG_2X (com ou sem framebuffer)
 #define HELLO_FLAG_ROTATE   0x10   // aceita PKT_ROTATION
+#define HELLO_FLAG_WIFI     0x20   // tem Wi-Fi (PKT_WIFI_SET e transporte UDP, ver abaixo)
 
 // PacketHeader.flags de PKT_RECT_LZ4: os pixels são metade da largura e da altura de
 // (w, h) e o ESP32 duplica-os em blocos 2x2 (x, y, w, h pares). Para animações.
@@ -118,11 +147,22 @@ struct HelloReply {
   uint8_t  transport;     // TRANSPORT_*: como o ESP32 está ligado ao PC
   uint8_t  align;         // 1 = qualquer retângulo; 2 = x, y, w, h pares (AMOLED)
   uint8_t  rotation;      // rotação atual do LCD (0..3), ver PKT_ROTATION
+  uint8_t  wifiState;     // WSTATE_*: estado da ligação Wi-Fi
+  int8_t   wifiRssi;      // dBm, só com WSTATE_CONNECTED
+  uint8_t  wifiIp[4];     // IP da placa, só com WSTATE_CONNECTED
+};
+
+enum WifiStateCode : uint8_t {
+  WSTATE_OFF        = 0,  // sem credenciais
+  WSTATE_CONNECTING = 1,
+  WSTATE_CONNECTED  = 2,
+  WSTATE_FAILED     = 3,  // rede não encontrada ou palavra-passe errada
 };
 
 enum Transport : uint8_t {
   TRANSPORT_USB_CDC = 0,  // USB nativo (ESP32-S2)
   TRANSPORT_UART    = 1,  // chip USB-série (CH340/CP210x), a UART_BAUD
+  TRANSPORT_WIFI    = 2,  // UDP fiável sobre Wi-Fi (ver abaixo)
 };
 
 enum RestartCause : uint8_t {

@@ -74,6 +74,8 @@ ipc.onStatus((st) => {
   lhm.textContent = st.lhm.ok ? t('status.lhm') : t('status.lhmError', { message: st.lhm.message });
   $('#stRate').textContent = st.device.connected ? `${st.fps} fps · ${st.kbps.toFixed(1)} KB/s` : '';
 
+  updateWifiStatus(st.device);
+
   // A marca "ligado" na lista de portas muda quando o ESP32 liga ou desliga.
   if (st.device.path !== lastDevicePath) {
     lastDevicePath = st.device.path;

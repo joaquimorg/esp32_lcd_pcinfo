@@ -246,3 +246,21 @@ test('HELLO diz se o LCD roda e em que posição está', () => {
   assert.strictEqual(P.parseHello(p).rotation, 1);
   assert.strictEqual(P.parseHello(p.subarray(0, 19)).rotation, 0, 'firmware sem o byte de rotação');
 });
+
+test('HELLO traz o estado do Wi-Fi e o transporte wifi', () => {
+  const p = Buffer.alloc(26);
+  p[0] = 3; p.writeUInt16LE(240, 1); p.writeUInt16LE(320, 3);
+  p[5] = 0x20; p[17] = 2; p[20] = 2; p.writeInt8(-55, 21); p[22] = 192; p[23] = 168; p[24] = 1; p[25] = 173;
+  const h = P.parseHello(p);
+  assert.strictEqual(h.wifiCapable, true);
+  assert.strictEqual(h.transport, 'wifi');
+  assert.deepStrictEqual(h.wifi, { state: 2, rssi: -55, ip: '192.168.1.173' });
+  assert.strictEqual(P.parseHello(p.subarray(0, 20)).wifi, null, 'firmware sem Wi-Fi');
+});
+
+test('PKT_WIFI_SET leva SSID e palavra-passe com os tamanhos à frente', () => {
+  const pk = P.wifiSetPacket('casa', 'segredo');
+  assert.strictEqual(pk[2], P.PKT.WIFI_SET);
+  assert.deepStrictEqual([...pk.subarray(16)], [4, ...Buffer.from('casa'), 7, ...Buffer.from('segredo')]);
+  assert.throws(() => P.wifiSetPacket('x'.repeat(33)));
+});
