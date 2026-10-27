@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.15.2
+
+**Wi-Fi link: no more drops (CYD)**
+- The Wi-Fi link used to freeze for 20-40 s and the app could not reconnect. Cause found with the real
+  app running against the board, a log on the board and pings: the board kept *receiving* but its
+  *transmissions* stopped (pings and replies lost, 100% of the board's replies to the app's connection
+  requests). It is the ESP32's 802.11n (A-MPDU) transmit path with the test router. The firmware now
+  joins as 802.11 b/g only: in an 8-minute run with the real app and a GIF widget, 0 disconnections and
+  494 of 496 pings answered, against 8 disconnections and 65 lost pings in 7 minutes with 11n (the same
+  firmware without the b/g call was kept as a control). Throughput did not suffer (0.7-0.8 MB/s measured,
+  GIF 9.9 fps): the freezes were costing more than HT gained.
+- The app waits 5 s (not 2 s) for a Wi-Fi ACK before redrawing everything, so the first full frame is
+  not mistaken for a loss.
+- Two real bugs fixed on the way (they made freezes worse): the board sent replies from the AsyncUDP
+  task and with its mutex held, which can deadlock the lwip thread when AsyncUDP's 32-entry queue fills;
+  and that task now runs above lwip (it ran at priority 3 on the Wi-Fi core and was starved).
+- Tried and ruled out: lower TX power, a smaller send window.
+
 ## 0.15.1
 
 **New LCD waiting screen**

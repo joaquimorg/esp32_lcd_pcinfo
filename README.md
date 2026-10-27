@@ -201,7 +201,8 @@ talk **over Wi-Fi** (2.4 GHz), which in the same animation test is about 3× fas
 
 Notes: the link is not encrypted or authenticated (meant for a trusted local
 network); some routers isolate Wi-Fi clients (guest networks); the app is the
-one that connects, so allow it through the Windows firewall if asked. The radio
+one that connects, so allow it through the Windows firewall if asked. The board joins
+as 802.11 b/g (not n): with 11n its transmissions froze for 20-40 s on the test router. The radio
 is only started once a network has been configured. Wi-Fi is in the CYD
 firmware only; the S2 Mini and the AMOLED board keep their native USB.
 

@@ -22,6 +22,7 @@ const PORT_OP_TIMEOUT_MS = 3000;   // abrir/fechar uma porta USB pode bloquear s
 const RETRY_MS = 2000;
 const HELLO_TIMEOUT_MS = 1500;
 const ACK_TIMEOUT_MS = 2000;
+const WIFI_ACK_TIMEOUT_MS = 5000;   // o primeiro frame completo por Wi-Fi demora mais que isto a chegar (e perder o ACK obriga a redesenhar tudo)
 const STUCK_MS = 4000;          // frames pendentes e nenhum ACK durante este tempo: ESP32 preso
 const HELLO_FAILS_TO_RESTART = 2;
 const RESTART_BAUD = 2400;      // abrir e fechar a porta a esta velocidade reinicia o ESP32 (firmware)
@@ -199,13 +200,13 @@ class Device extends EventEmitter {
         } catch (err) {
           this.emit('log', `ligação falhou: ${err.message}`);
         }
-      } else if (this.inFlight.length && Date.now() - this.inFlight[0].time > ACK_TIMEOUT_MS) {
+      } else if (this.inFlight.length && Date.now() - this.inFlight[0].time > (this.info?.transport === 'wifi' ? WIFI_ACK_TIMEOUT_MS : ACK_TIMEOUT_MS)) {
         if (Date.now() - this.lastAckAt > STUCK_MS) {
           await this._recover(this.info?.path, 'sem ACKs');
           continue;
         }
         // Perdeu-se um ACK: recomeça com um frame completo.
-        this.emit('log', `ACK ${this.inFlight[0].seq} não chegou em ${ACK_TIMEOUT_MS} ms: frame completo`);
+        this.emit('log', `ACK ${this.inFlight[0].seq} não chegou a tempo: frame completo`);
         this.inFlight = [];
         this.emit('resync');
       }

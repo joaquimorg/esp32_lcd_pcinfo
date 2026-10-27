@@ -85,6 +85,9 @@
 #define RX_STALL_MS      10000  // porta aberta e nada recebido: USB encravado -> reinicia
 
 static Lcd tft;
+#ifdef WL_DEBUG
+volatile uint32_t dbgLoopMs = 0, dbgPackets = 0, dbgErrors = 0;
+#endif
 
 static void onIdle();
 static void onViewportChanged();
@@ -228,6 +231,9 @@ static bool rxRead(void* dst, size_t n, uint32_t timeoutMs = RX_TIMEOUT_MS)
     if (timeoutMs && idle > timeoutMs) return false;
     if (!timeoutMs) onIdle();   // só entre pacotes (à espera de cabeçalho)
     feedLoopWDT();
+#ifdef WL_DEBUG
+    dbgLoopMs = millis();
+#endif
     if (idle > 2) vTaskDelay(1);
   }
   return true;
@@ -492,6 +498,9 @@ static void sendReply(uint8_t type, const void* payload, uint16_t len)
 static void sendError(ErrorCode code, uint8_t packetType)
 {
   stats.errors++;
+#ifdef WL_DEBUG
+  dbgErrors = stats.errors;
+#endif
   ErrorReply e = { code, packetType };
   sendReply(RSP_ERROR, &e, sizeof(e));
 }
@@ -1287,6 +1296,9 @@ void loop()
     return;
   }
   stats.packets++;
+#ifdef WL_DEBUG
+  dbgPackets = stats.packets;
+#endif
   stats.payloadBytes += h.len;
   lastPacketMs = millis();
   waiting = false;

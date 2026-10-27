@@ -16,7 +16,12 @@
 #include <WiFi.h>
 #include <Preferences.h>
 #include <AsyncUDP.h>
+#include <esp_wifi.h>
 #include "protocol.h"
+
+#ifdef WL_DEBUG
+extern volatile uint32_t dbgLoopMs, dbgPackets, dbgErrors;   // main.cpp
+#endif
 
 namespace wl {
 
@@ -50,6 +55,8 @@ static int nseg = 0;
 static uint32_t cDup = 0, cWin = 0, cOoo = 0;          // contadores enviados no 'A'
 static uint32_t lastAckMs = 0, ackContig = 0, ackRd = 0;
 static uint32_t lastTxMs = 0, lastSentWr = 0;
+static uint8_t yBuf[15];             // resposta a 'X', enviada pela udpTask
+static volatile bool yPending = false;
 
 /* ------------------------------ Wi-Fi ------------------------------------ */
 
@@ -63,8 +70,20 @@ static void wifiConnect()
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);   // com poupança de energia a latência sobe 100 ms ou mais
+  // Só 802.11 b/g (sem 11n). Com o 11n (A-MPDU) a transmissão do ESP32 parava durante 20-40 s de cada
+  // vez, enquanto a receção continuava a funcionar: pings e respostas perdidos, a app a desligar-se e
+  // a não conseguir voltar (medido com o router de teste: 6-14 quedas em 5 min contra 0 em 190 s, e
+  // até mais débito: 0,7-0,8 MB/s). O b/g chega e sobra: dá ~2 MB/s úteis, e a CYD precisa de menos de 1.
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G);
   WiFi.setAutoReconnect(true);
   WiFi.begin(ssid.c_str(), pass.c_str());
+#ifdef WL_DEBUG
+  WiFi.onEvent([](arduino_event_id_t e, arduino_event_info_t i) {
+    Serial.print("WLEV "); Serial.print((int)e);
+    if (e == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) { Serial.print(" reason="); Serial.print((int)i.wifi_sta_disconnected.reason); }
+    Serial.println();
+  });
+#endif
 }
 
 static uint8_t state()
@@ -94,16 +113,17 @@ static inline uint16_t get16(const uint8_t* p) { uint16_t v; memcpy(&v, p, 2); r
 static inline uint32_t get32(const uint8_t* p) { uint32_t v; memcpy(&v, p, 4); return v; }
 
 #ifdef WL_DEBUG
-static uint32_t dgN = 0, dgUs = 0, txN = 0, txUs = 0, ringMax = 0;
+static uint32_t dgN = 0, dgUs = 0, txN = 0, txUs = 0, ringMax = 0, txFail = 0, txMaxUs = 0;
 #endif
 static void sendPeer(const void* data, size_t n)
 {
 #ifdef WL_DEBUG
   uint32_t t0 = micros();
 #endif
-  udp.writeTo((const uint8_t*)data, n, peerIp, peerPort);
+  size_t sent = udp.writeTo((const uint8_t*)data, n, peerIp, peerPort);
 #ifdef WL_DEBUG
-  txN++; txUs += micros() - t0;
+  uint32_t dt = micros() - t0;
+  txN++; txUs += dt; if (dt > txMaxUs) txMaxUs = dt; if (!sent) txFail++;
 #endif
 }
 
@@ -183,9 +203,15 @@ static void onData(uint32_t off, const uint8_t* data, uint32_t len)
   requestAck(false);
 }
 
+#ifdef WL_DEBUG
+static uint32_t dbgX = 0, dbgWrongPeer = 0, dbgWrongSid = 0;
+#endif
 static void onDatagram(const uint8_t* b, int n, IPAddress from, uint16_t fport)
 {
   if (n >= 3 && b[0] == 'X') {
+#ifdef WL_DEBUG
+    dbgX++; Serial.print("XSESSION from "); Serial.print(from); Serial.print(':'); Serial.println(fport);
+#endif
     sid = get16(b + 1);
     peerIp = from;
     peerPort = fport;
@@ -197,13 +223,23 @@ static void onDatagram(const uint8_t* b, int n, IPAddress from, uint16_t fport)
     txAcked = txWr;
     lastSentWr = txWr;
     sessionActive = true;
-    uint8_t y[15];
-    y[0] = 'Y'; put16(y + 1, sid); put32(y + 3, c); put32(y + 7, txWr); put32(y + 11, RING);
-    sendPeer(y, sizeof(y));
+    // Não se envia daqui: esta função corre na task do AsyncUDP (ver udpTask). O 'Y' sai pela udpTask.
+    yBuf[0] = 'Y'; put16(yBuf + 1, sid); put32(yBuf + 3, c); put32(yBuf + 7, txWr); put32(yBuf + 11, RING);
+    yPending = true;
     return;
   }
-  if (!sessionActive || n < 12 || b[0] != 'D' || get16(b + 2) != sid) return;
-  if (from != peerIp || fport != peerPort) return;
+  if (!sessionActive || n < 12 || b[0] != 'D' || get16(b + 2) != sid) {
+#ifdef WL_DEBUG
+    dbgWrongSid++;
+#endif
+    return;
+  }
+  if (from != peerIp || fport != peerPort) {
+#ifdef WL_DEBUG
+    dbgWrongPeer++;
+#endif
+    return;
+  }
 
   uint32_t rAck = get32(b + 8);
   uint32_t wr = txWr;
@@ -212,18 +248,18 @@ static void onDatagram(const uint8_t* b, int n, IPAddress from, uint16_t fport)
   if (b[1] & 1) requestAck(true);                       // POLL
 }
 
-static void tickTx(uint32_t now)
+// Monta a resposta a (re)enviar e devolve o tamanho (0 = nenhuma). Chamado com o mutex; quem envia é a udpTask, sem ele.
+static int tickTx(uint32_t now, uint8_t* b)
 {
   uint32_t acked = txAcked, wr = txWr;
-  if (acked == wr) return;
-  if (wr == lastSentWr && now - lastTxMs < REPLY_RTO_MS) return;
-  uint8_t b[8 + WIFI_PAYLOAD];
+  if (acked == wr) return 0;
+  if (wr == lastSentWr && now - lastTxMs < REPLY_RTO_MS) return 0;
   uint32_t len = min<uint32_t>(wr - acked, WIFI_PAYLOAD);
   b[0] = 'R'; b[1] = 0; put16(b + 2, sid); put32(b + 4, acked);
   for (uint32_t i = 0; i < len; i++) b[8 + i] = txRing[(acked + i) & (TX_RING - 1)];
-  sendPeer(b, 8 + len);
   lastSentWr = wr;
   lastTxMs = now;
+  return 8 + len;
 }
 
 // Devolve o tamanho do ACK a enviar (0 = nenhum). Chamado com o mutex.
@@ -240,6 +276,16 @@ static void startListening()
 {
   if (!udp.listen(WIFI_UDP_PORT)) return;
   udp.onPacket([](AsyncUDPPacket& p) {
+    // Esta função corre na task "async_udp" do AsyncUDP, que a biblioteca cria no core 0 com
+    // prioridade 3: abaixo da pilha lwip (18), do Wi-Fi (23) e da nossa udpTask (19). Com tráfego
+    // intenso fica sem CPU, a fila de 32 datagramas enche e a thread do lwip bloqueia no
+    // xQueueSend (sem limite de tempo): deixa de responder a tudo (pings, ACKs) durante segundos.
+    // Acima do lwip, esvazia a fila sempre que há datagramas.
+    static bool boosted = false;
+    if (!boosted) {
+      vTaskPrioritySet(nullptr, 21);
+      boosted = true;
+    }
     xSemaphoreTake(mtx, portMAX_DELAY);
 #ifdef WL_DEBUG
     uint32_t t0 = micros();
@@ -263,12 +309,18 @@ static void udpTask(void*)
     if (up && !listening) startListening();
     if (listening && sessionActive) {
       uint32_t now = millis();
-      uint8_t ab[16 + 4 * 8 + 6];
+      static uint8_t ab[16 + 4 * 8 + 6], rb[8 + WIFI_PAYLOAD], yb[15];
+      int rl, al, yl = 0;
       xSemaphoreTake(mtx, portMAX_DELAY);
-      tickTx(now);
-      int al = pollAck(now, ab);
+      rl = tickTx(now, rb);
+      al = pollAck(now, ab);
+      if (yPending) { memcpy(yb, yBuf, sizeof(yb)); yl = sizeof(yb); yPending = false; }
       xSemaphoreGive(mtx);
+      // Só aqui se envia, sem o mutex: writeTo espera pela thread do lwip, e essa fica bloqueada
+      // (xQueueSend sem limite) se a fila do AsyncUDP encher enquanto a sua task espera pelo mutex.
+      if (yl) sendPeer(yb, yl);
       if (al) sendPeer(ab, al);
+      if (rl) sendPeer(rb, rl);
     }
 #ifdef WL_DEBUG
     static uint32_t last = 0;
@@ -283,7 +335,13 @@ static void udpTask(void*)
     if (millis() - last2 >= 1000) {
       last2 = millis();
       Serial.print("HEAP free="); Serial.print(ESP.getFreeHeap()); Serial.print(" min="); Serial.print(ESP.getMinFreeHeap());
-      Serial.print(" largest="); Serial.println(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+      wifi_ps_type_t ps = WIFI_PS_NONE; esp_wifi_get_ps(&ps);
+      Serial.print(" ps="); Serial.print((int)ps); Serial.print(" rssi="); Serial.print(WiFi.RSSI());
+      Serial.print(" largest="); Serial.print(heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+      Serial.print(" loopAge="); Serial.print(millis() - dbgLoopMs); Serial.print(" pk="); Serial.print(dbgPackets); Serial.print(" err="); Serial.print(dbgErrors);
+      Serial.print(" X="); Serial.print(dbgX); Serial.print(" wrongSid="); Serial.print(dbgWrongSid); Serial.print(" wrongPeer="); Serial.print(dbgWrongPeer);
+      Serial.print(" txN="); Serial.print(txN); Serial.print(" txFail="); Serial.print(txFail); Serial.print(" txMaxUs="); Serial.print(txMaxUs); txN = txFail = txMaxUs = 0;
+      Serial.print(" sess="); Serial.print((int)sessionActive); Serial.print(" contig-rd="); Serial.println((unsigned)(contig - rd));
     }
 #endif
     vTaskDelay(2);
