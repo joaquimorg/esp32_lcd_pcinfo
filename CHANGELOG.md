@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.1
+
+**New LCD waiting screen**
+- Header with an accent line, the spinner, "Waiting for data from PC", a line for the cable side
+  and, on the CYD, a Wi-Fi line: not set up, connecting, connected (IP address and signal
+  strength, refreshed in 5 dBm steps) or cannot join the network. It follows the app language.
+- Documentation brought up to date with the Wi-Fi link, deflate and the measured speeds
+  (new *Speed* section), with new screenshots: the app windows and exact captures of the
+  waiting screen, taken from the panel itself.
+- `app/scripts/capture-lcd.js`: reads the LCD back and saves a PNG (firmware built with `-D LCD_CHECK`).
+
 ## 0.15.0
 
 **More fps, no loss of quality (CYD and S2 Mini)**

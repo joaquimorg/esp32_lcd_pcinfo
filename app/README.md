@@ -1,8 +1,9 @@
 # USB LCD Widgets
 
-App de PC que desenha widgets HTML e os envia por USB para o LCD do ESP32-S2
-(firmware em `../src`). Só são enviadas as zonas do ecrã que mudam, comprimidas
-com RLE.
+App de PC que desenha widgets HTML e os envia por USB (ou, na CYD, por Wi-Fi)
+para o LCD do ESP32 (firmware em `../src`). Só são enviadas as zonas do ecrã que
+mudam, cada retângulo no formato mais pequeno entre raw, RLE, LZ4 e deflate,
+sem perder qualidade: os pixels no LCD são exatamente os que o PC desenhou.
 
 Um **widget** é um ecrã completo do LCD, composto por **componentes** (gauge,
 valor, barra, gráfico, relógio, texto ou componentes próprios), **formas**
@@ -55,8 +56,11 @@ componentes, na secção `i18n.pt` de cada `manifest.json`.
 - As imagens têm ajuste (`contain`, `cover`, `fill`, `none` = tamanho
   original), opacidade, rotação, cantos arredondados e modo pixelizado (para
   pixel art). Os GIF/WebP animados animam no LCD. Com **Animar** desligado,
-  mostram só o primeiro frame. Cada frame de uma animação é enviado por USB,
-  por isso uma animação grande gasta débito.
+  mostram só o primeiro frame. Cada frame de uma animação é enviado pela
+  ligação (cabo ou Wi-Fi), por isso uma animação grande gasta débito: o limite é
+  a ligação (CYD no cabo série ~0,15 MB/s, por Wi-Fi 0,3-0,65 MB/s, USB nativo
+  ~0,5 MB/s). Com o deflate, um GIF de ecrã inteiro corre 32-36% mais depressa
+  em todas as ligações (ver o README em inglês, secção Speed).
 - Cria componentes novos com IA.
 - **Exportar…** grava o widget num ficheiro `.lcdwidget`. **Importar…** abre
   um desses ficheiros para editar.
@@ -124,6 +128,16 @@ Os widgets passam a ser desenhados para esse tamanho. No editor, componentes
 que fiquem fora da área aparecem com contorno vermelho. A área também é
 guardada no ESP32, para que o ecrã de espera fique centrado na parte visível.
 
+## Ligação por Wi-Fi (CYD)
+
+Em **Definições → Ligação ESP32**, *Ligação ao ecrã* pode ser *Cabo USB* ou
+*Wi-Fi*. Com Wi-Fi, liga a CYD por USB uma vez, escreve a rede (2,4 GHz) e a
+palavra-passe e carrega em **Configurar a placa**. A placa guarda-as na flash (a
+app nunca guarda a palavra-passe), liga-se à rede e a app passa a falar com ela
+por UDP, cerca de 2-3 vezes mais depressa que o cabo série. Os dois modos ficam
+sempre disponíveis. Se a placa mudar de endereço, repete o passo. A ligação não é
+cifrada: destina-se a uma rede local de confiança.
+
 ## Se o LCD deixar de responder
 
 No ESP32-S2, fechar a porta USB com dados a meio (por exemplo, se a app for
@@ -152,13 +166,18 @@ bootloader são ignoradas, para não reiniciar outras placas ligadas.
 ## Ecrã de espera
 
 Se o ESP32 passar 3 s sem receber dados, mostra "A aguardar dados do PC", com
-um indicador animado e uma linha de estado:
+um indicador animado, uma linha de estado do cabo e, na CYD, outra do Wi-Fi
+(imagens reais do painel em [../docs/images/lcd-waiting-pt.png](../docs/images/lcd-waiting-pt.png)):
 
 | Estado | Significado |
 |---|---|
 | Sem ligacao USB ao PC | o cabo só dá alimentação, ou o PC não reconheceu o dispositivo |
 | Abre a app no PC | USB ligado, mas a app não tem a porta aberta |
 | App ligada, sem dados | a app abriu a porta, mas não está a enviar |
+| Wi-Fi nao configurado | ainda não foi dada nenhuma rede à placa (CYD) |
+| Wi-Fi a ligar... | a placa está a entrar na rede |
+| Wi-Fi 192.168.1.x  -55 dBm | ligada: endereço e intensidade do sinal (verde) |
+| Wi-Fi: sem acesso a rede | palavra-passe errada, ou rede só de 5 GHz (vermelho) |
 
 Mesmo sem alterações no ecrã, a app envia um sinal a cada segundo. Quando os
 dados voltam, a app redesenha o ecrã completo automaticamente.

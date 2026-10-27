@@ -1008,6 +1008,21 @@ static bool handlePacket(const PacketHeader& h)
 #endif
 
 #ifdef LCD_CHECK
+    case 0x7E: {   // diagnóstico: devolve o LCD, uma linha por resposta (0x8D: y u16 + pixels em big-endian)
+      skipPayload(h.len);
+      static uint16_t line[320];
+      for (int y = 0; y < tft.height(); y++) {
+        tft.readRect(0, y, tft.width(), 1, line);
+        uint8_t hdr[2] = { (uint8_t)y, (uint8_t)(y >> 8) };
+        uint8_t buf[2 + 640];
+        memcpy(buf, hdr, 2);
+        memcpy(buf + 2, line, tft.width() * 2);
+        sendReply(0x8D, buf, 2 + tft.width() * 2);
+      }
+      return true;
+    }
+#endif
+#ifdef LCD_CHECK
     case 0x7F: {   // diagnóstico: lê o LCD de volta e compara com a shadow
       skipPayload(h.len);
       static uint16_t row[320];
@@ -1055,6 +1070,9 @@ static bool waiting = false;
 static bool screenOff = false;   // ecrã desligado por falta de dados; acorda com o próximo pacote
 static uint32_t lastPacketMs = 0;
 static uint8_t waitStatus = 0xFF;
+#if LCD_WIFI
+static uint32_t waitWifiSig = 0xFFFFFFFF;
+#endif
 static uint8_t spinnerStep = 0;
 static uint32_t spinnerMs = 0;
 
@@ -1072,30 +1090,37 @@ static void drawSpinnerDot(int i, uint16_t color)
   tft.fillCircle(waitX(120) + cosf(a) * r, waitY(115) + sinf(a) * r, max(5, vp.h / 60), color);
 }
 
+// Ecrã de espera (desenho base 240x320, escalado à área visível):
+//   cabeçalho, o spinner, "a aguardar dados do PC" e, por baixo, uma linha por ligação (cabo e, com
+//   Wi-Fi, a rede com o IP e o sinal) a dizer o que falta, e a resolução.
 static void drawWaitingScreen()
 {
   int cx = waitX(120);
   tft.fillScreen(TFT_BLACK);
   tft.setTextDatum(MC_DATUM);
 
-  tft.setTextColor(tft.color565(110, 116, 125), TFT_BLACK);
-  tft.drawString("USB LCD", cx, vp.y + 18, 2);
+  tft.setTextColor(tft.color565(150, 156, 165), TFT_BLACK);
+  tft.drawString("USB LCD WIDGETS", cx, waitY(18), 2);
+  tft.fillRect(waitX(104), waitY(32), waitX(136) - waitX(104), max(2, vp.h / 160), accentColor());
 
   for (int i = 0; i < SPINNER_DOTS; i++) drawSpinnerDot(i, dimColor());
 
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   // As fontes do TFT_eSPI não têm acentos: os textos vão sem eles.
   static const char* const title[LANG_COUNT][2] = { { "Waiting for", "data from PC" }, { "A aguardar", "dados do PC" } };
-  tft.drawString(title[lang][0], cx, waitY(195), 4);
-  tft.drawString(title[lang][1], cx, waitY(195) + 30, 4);
+  tft.drawString(title[lang][0], cx, waitY(180), 4);
+  tft.drawString(title[lang][1], cx, waitY(180) + 30, 4);
 
   tft.setTextColor(tft.color565(90, 96, 105), TFT_BLACK);
-  tft.drawString(String(vp.w) + " x " + String(vp.h), cx, vp.y + vp.h - 14, 2);
+  tft.drawString(String(vp.w) + " x " + String(vp.h), cx, vp.y + vp.h - 12, 2);
   lcdPresent(tft);
   waitStatus = 0xFF;
+#if LCD_WIFI
+  waitWifiSig = 0xFFFFFFFF;
+#endif
 }
 
-// Linha de estado: ajuda a perceber porque não chegam dados.
+// Linha de estado do cabo/PC: ajuda a perceber porque não chegam dados.
 static void drawWaitingStatus(uint8_t status)
 {
   static const char* const text[LANG_COUNT][3] = {
@@ -1103,13 +1128,44 @@ static void drawWaitingStatus(uint8_t status)
     { "Sem ligacao USB ao PC", "Abre a app no PC", "App ligada, sem dados" },
   };
   const uint16_t color[] = { TFT_RED, tft.color565(242, 184, 75), accentColor() };
-  int y = vp.y + vp.h - 42;
+  int y = waitY(246);
   tft.fillRect(vp.x, y - 10, vp.w, 20, TFT_BLACK);
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(color[status], TFT_BLACK);
   tft.drawString(text[lang][status], waitX(120), y, 2);
   lcdPresent(tft);
 }
+
+#if LCD_WIFI
+// Linha do Wi-Fi: não configurado, a ligar, ligado (IP e sinal) ou sem rede.
+static void drawWaitingWifi()
+{
+  static const char* const text[LANG_COUNT][4] = {
+    { "Wi-Fi not set up", "Wi-Fi connecting...", "Wi-Fi", "Wi-Fi: cannot join network" },
+    { "Wi-Fi nao configurado", "Wi-Fi a ligar...", "Wi-Fi", "Wi-Fi: sem acesso a rede" },
+  };
+  const uint8_t st = wl::state();
+  uint8_t ip[4];
+  wl::ip(ip);
+  const uint16_t color[] = { tft.color565(90, 96, 105), tft.color565(242, 184, 75), tft.color565(76, 200, 120), TFT_RED };
+  String s = text[lang][st];
+  if (st == WSTATE_CONNECTED) s += " " + String(ip[0]) + "." + String(ip[1]) + "." + String(ip[2]) + "." + String(ip[3]) + "  " + String(wl::rssi()) + " dBm";
+  int y = waitY(268);
+  tft.fillRect(vp.x, y - 10, vp.w, 20, TFT_BLACK);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(color[st], TFT_BLACK);
+  tft.drawString(s, waitX(120), y, 2);
+  lcdPresent(tft);
+}
+
+// Assinatura do que a linha mostra (o sinal em passos de 5 dBm: não se redesenha por 1 dBm).
+static uint32_t wifiSignature()
+{
+  uint8_t ip[4];
+  wl::ip(ip);
+  return wl::state() | ((uint32_t)ip[3] << 8) | ((uint32_t)ip[2] << 16) | ((uint32_t)(uint8_t)(wl::rssi() / 5) << 24);
+}
+#endif
 
 static void enterWaiting()
 {
@@ -1150,6 +1206,13 @@ static void onIdle()
     waitStatus = status;
     drawWaitingStatus(status);
   }
+#if LCD_WIFI
+  uint32_t sig = wifiSignature();
+  if (sig != waitWifiSig) {
+    waitWifiSig = sig;
+    drawWaitingWifi();
+  }
+#endif
 
   if (now - spinnerMs >= 90) {
     spinnerMs = now;
