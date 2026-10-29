@@ -16,6 +16,14 @@ so nothing is lost: the pixels on the LCD are exactly the ones the PC drew.
 </p>
 
 <p align="center">
+  <a href="https://www.youtube.com/shorts/idgX6G07mIA">
+    <img src="https://img.youtube.com/vi/idgX6G07mIA/hqdefault.jpg" alt="Watch the video of the USB LCD in action on YouTube" width="240">
+  </a>
+  <br>
+  <a href="https://www.youtube.com/shorts/idgX6G07mIA">▶ Watch the video on YouTube</a>
+</p>
+
+<p align="center">
   <img src="docs/images/lcd-widgets.png" alt="Four widgets as drawn on the LCD: dashboard, CPU, GPU and clock">
 </p>
 
