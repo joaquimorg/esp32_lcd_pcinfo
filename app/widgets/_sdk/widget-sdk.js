@@ -7,7 +7,9 @@
  *            tipo "sensor" chegam como objeto:
  *              { id, name, hardware, group, type, value, unit, min, max, history }
  *            ou null se o sensor não existir. history tem as últimas leituras
- *            (até 600, a mais recente no fim).
+ *            (até 600, a mais recente no fim). As do tipo "sensorGroup" chegam
+ *            como { <resto do id>: sensor } (ex: "ai/claude" -> { primary, secondary }),
+ *            e o valor escolhido em <key>Id.
  *     info   { size: { width, height }, sensorSeq, lang } — sensorSeq muda a
  *            cada leitura nova (útil para históricos); lang é o idioma da app
  *            ('en' ou 'pt').

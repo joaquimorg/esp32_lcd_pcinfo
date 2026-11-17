@@ -75,6 +75,7 @@ ipc.onStatus((st) => {
   $('#stRate').textContent = st.device.connected ? `${st.fps} fps · ${st.kbps.toFixed(1)} KB/s` : '';
 
   updateWifiStatus(st.device);
+  updateAiStatus(st.ai);
 
   // A marca "ligado" na lista de portas muda quando o ESP32 liga ou desliga.
   if (st.device.path !== lastDevicePath) {

@@ -107,6 +107,23 @@ são identificados pelo `SensorId`, por isso não mudam quando acrescentas
 hardware. Há também sensores próprios da app (`sys/cpu/load`, `sys/mem/load`,
 `sys/mem/used`) que funcionam sem o LHM.
 
+### Subscrições de IA (Claude Code e Codex)
+
+Em **Definições → Subscrições de IA** liga-se cada serviço (vêm desligados). A app
+lê o login que o Claude Code (`~/.claude/.credentials.json`) e o Codex
+(`~/.codex/auth.json`) guardam neste PC, só para leitura (nunca o renova nem o
+guarda), e pergunta a utilização a cada 90 s. O estado aparece ao lado do
+interruptor; "login expirado" quer dizer que o Claude Code não é usado há umas
+horas e volta a funcionar quando o abrir.
+
+O widget **Uso de IA** mostra um serviço: a janela curta e a da semana em barras,
+anéis ou compacto, com cores de aviso e de limite e, quando uma janela chega aos
+100%, quando faz reset ("em 2h 15m", "às 14:30" ou os dois). As janelas têm o
+nome da duração real (o Codex no plano Go tem uma só, de 30 dias). Os mesmos
+valores existem como sensores (`ai/claude/primary`, `ai/claude/secondary`,
+`ai/codex/primary`...) para a barra, o gauge e os outros widgets. Estes pedidos
+não são APIs públicas e podem deixar de funcionar com uma atualização dos serviços.
+
 A configuração fica em `%APPDATA%\usb-lcd-widgets\config.json`.
 
 ## Tamanho do LCD (área visível)

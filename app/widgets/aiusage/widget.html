@@ -1,0 +1,179 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+  body {
+    box-sizing: border-box; display: flex; flex-direction: column; justify-content: center;
+    font-family: "Segoe UI", system-ui, sans-serif; font-variant-numeric: tabular-nums;
+    line-height: 1.15; white-space: nowrap;
+  }
+  .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+  .muted { opacity: .65; }
+  .small { font-size: .78em; }
+  .row { display: flex; align-items: center; gap: .45em; }
+  .row .k { min-width: 2.1em; }
+  .row .v { min-width: 2.8em; text-align: right; font-weight: 600; }
+  .track { flex: 1; position: relative; overflow: hidden; }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; }
+  .rings { display: flex; justify-content: space-evenly; align-items: center; flex: 1; min-height: 0; }
+  .ring { display: flex; flex-direction: column; align-items: center; min-width: 0; }
+  .ring svg { display: block; }
+  .compact { display: grid; grid-template-columns: auto auto 1fr; column-gap: .5em; align-items: baseline; }
+  .compact .v { text-align: right; font-weight: 600; }
+</style>
+</head>
+<body>
+<script src="../_sdk/widget-sdk.js"></script>
+<script>
+  const TEXT = {
+    en: { noData: 'no data', limit: 'LIMIT', now: 'resetting', in: 'resets in {t}', at: 'resets at {t}', both: 'resets in {t} ({c})', week: 'week' },
+    pt: { noData: 'sem dados', limit: 'LIMITE', now: 'reset agora', in: 'reset em {t}', at: 'reset às {t}', both: 'reset em {t} ({c})', week: 'semana' },
+  };
+  const NAMES = { 'ai/claude': 'Claude Code', 'ai/codex': 'Codex' };
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  function windowName(s) {
+    const sec = s.windowSec;
+    if (!sec) return '';
+    return sec < 48 * 3600 ? `${Math.round(sec / 3600)}h` : `${Math.round(sec / 86400)}d`;
+  }
+
+  function duration(ms) {
+    const m = Math.max(1, Math.ceil(ms / 60000));
+    const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+    if (d) return h ? `${d}d ${h}h` : `${d}d`;
+    if (h) return mm ? `${h}h ${String(mm).padStart(2, '0')}m` : `${h}h`;
+    return `${mm}m`;
+  }
+
+  function clock(at, info) {
+    const loc = Widget.locale(info);
+    const date = new Date(at);
+    const time = date.toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' });
+    if (date.toDateString() === new Date().toDateString()) return time;
+    return `${date.toLocaleDateString(loc, { day: 'numeric', month: 'short' })} ${time}`;
+  }
+
+  /** Texto do reset; curto = sem a palavra "reset" (para dentro dos anéis). */
+  function resetText(s, p, info, short) {
+    const L = TEXT[info.lang] || TEXT.en;
+    if (!s.resetAt) return L.limit;
+    const left = s.resetAt - Date.now();
+    if (left <= 0) return L.now;
+    const rel = duration(left), clk = clock(s.resetAt, info);
+    if (short) return p.resetFormat === 'clock' ? clk : rel;
+    if (p.resetFormat === 'clock') return L.at.replace('{t}', clk);
+    if (p.resetFormat === 'both') return L.both.replace('{t}', rel).replace('{c}', clk);
+    return L.in.replace('{t}', rel);
+  }
+
+  function colorFor(v, p) {
+    if (v >= 100) return p.limitColor;
+    if (v >= Number(p.warnAt ?? 80)) return p.warnColor;
+    return p.color;
+  }
+
+  const pct = (v) => `${Math.round(v)}%`;
+
+  function draw(p, info) {
+    const L = TEXT[info.lang] || TEXT.en;
+    const { width: W, height: H } = info.size;
+    const group = p.service || {};
+    const keys = p.show === 'primary' ? ['primary'] : p.show === 'secondary' ? ['secondary'] : ['primary', 'secondary'];
+    const wins = keys.map((k) => group[k]).filter((s) => s && s.value != null);
+    const title = p.label || NAMES[p.serviceId] || (wins[0] && wins[0].group) || '';
+    const body = document.body;
+    body.style.color = p.textColor;
+    const pad = Math.round(Math.min(W, H) * 0.04);
+    body.style.padding = `${pad}px`;
+    const innerH = H - 2 * pad;
+
+    if (!wins.length) {
+      const fs = Math.max(8, Math.min(innerH / 2.6, W / 9));
+      body.style.fontSize = fs + 'px';
+      body.innerHTML = `<div class="title">${esc(title)}</div><div class="muted">${L.noData}</div>`;
+      return;
+    }
+
+    const style = p.style || 'bars';
+    if (style === 'rings') return drawRings(wins, title, p, info, innerH, W - 2 * pad);
+    if (style === 'compact') return drawCompact(wins, title, p, info, innerH, W - 2 * pad);
+
+    // Barras: legenda, e por janela uma linha [nome | barra | %] (+ uma linha com o reset no limite).
+    const lines = (title ? 1 : 0) + wins.length + wins.filter((s) => s.value >= 100).length * 0.85;
+    const fs = Math.max(8, Math.min(innerH / (lines * 1.35), W / 12));
+    body.style.fontSize = fs + 'px';
+    const barH = Math.max(3, Math.round(fs * 0.55));
+    let html = title ? `<div class="title">${esc(title)}</div>` : '';
+    for (const s of wins) {
+      const c = colorFor(s.value, p);
+      const f = Math.max(0, Math.min(1, s.value / 100));
+      const v = s.value >= 100 ? `<span style="color:${c}">${L.limit}</span>` : pct(s.value);
+      html += `<div class="row"><span class="k muted">${esc(windowName(s))}</span>`
+        + `<div class="track" style="height:${barH}px;border-radius:${barH / 2}px;background:${p.trackColor}">`
+        + `<div class="fill" style="width:${(f * 100).toFixed(1)}%;background:${c}"></div></div>`
+        + `<span class="v">${v}</span></div>`;
+      if (s.value >= 100) html += `<div class="small" style="color:${c};text-align:right">${esc(resetText(s, p, info))}</div>`;
+    }
+    body.innerHTML = html;
+  }
+
+  function drawRings(wins, title, p, info, innerH, innerW) {
+    const body = document.body;
+    const titleFs = Math.max(8, Math.min(innerH * 0.16, innerW / 10));
+    const capFs = titleFs * 0.85;
+    const size = Math.max(16, Math.min(innerH - (title ? titleFs * 1.3 : 0) - capFs * 1.3, innerW / wins.length - 6));
+    body.style.fontSize = titleFs + 'px';
+    const thick = Math.max(3, size * 0.12);
+    const r = (size - thick) / 2;
+    let html = title ? `<div class="title" style="text-align:center">${esc(title)}</div>` : '';
+    html += '<div class="rings">';
+    for (const s of wins) {
+      const c = colorFor(s.value, p);
+      const f = Math.max(0, Math.min(1, s.value / 100));
+      const limit = s.value >= 100;
+      const inside = limit ? resetText(s, p, info, true) : pct(s.value);
+      const inFs = Math.max(7, Math.min(size * (limit ? 0.2 : 0.28), (size - 2 * thick) / Math.max(3, inside.length * 0.6)));
+      html += `<div class="ring"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`
+        + `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${p.trackColor}" stroke-width="${thick}"/>`
+        + `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${c}" stroke-width="${thick}" pathLength="100"`
+        + ` stroke-dasharray="${(f * 100).toFixed(2)} 100" transform="rotate(-90 ${size / 2} ${size / 2})" stroke-linecap="${f > 0 && f < 1 ? 'round' : 'butt'}"/>`
+        + `<text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="${inFs}" font-weight="600" fill="${limit ? c : p.textColor}">${esc(inside)}</text>`
+        + `</svg><div class="muted" style="font-size:${capFs}px">${esc(windowName(s))}</div></div>`;
+    }
+    body.innerHTML = html + '</div>';
+  }
+
+  function drawCompact(wins, title, p, info, innerH, innerW) {
+    const body = document.body;
+    const rows = wins.length + wins.filter((s) => s.value >= 100).length * 0.85;
+    const fs = Math.max(8, Math.min(innerH / (rows * 1.3), innerW / 11));
+    body.style.fontSize = fs + 'px';
+    let html = '<div class="compact">';
+    wins.forEach((s, i) => {
+      const c = colorFor(s.value, p);
+      html += `<span class="title">${i === 0 ? esc(title) : ''}</span>`
+        + `<span class="muted">${esc(windowName(s))}</span>`
+        + `<span class="v" style="color:${c}">${pct(s.value)}</span>`;
+      if (s.value >= 100) {
+        // Linha inteira, com a letra reduzida até caber (o formato "ambos" é comprido).
+        const txt = resetText(s, p, info);
+        const rfs = Math.min(fs * 0.78, innerW / (txt.length * 0.55));
+        html += `<span style="grid-column:1/-1;text-align:right;font-size:${rfs}px;color:${c}">${esc(txt)}</span>`;
+      }
+    });
+    body.innerHTML = html + '</div>';
+  }
+
+  let last = null;
+  Widget.onUpdate((props, info) => {
+    last = [props, info];
+    draw(props, info);
+  });
+  // A contagem até ao reset avança entre consultas (o servidor só é consultado a cada 90 s).
+  setInterval(() => { if (last) draw(...last); }, 30000);
+</script>
+</body>
+</html>

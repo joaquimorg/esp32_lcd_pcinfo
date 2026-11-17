@@ -7,6 +7,7 @@ const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, shell, cli
 const { Device, listPorts } = require('./device');
 const { FrameSender } = require('./frame-sender');
 const { Sensors } = require('./sensors');
+const { AiUsage } = require('./ai-usage');
 const { ConfigStore, newId } = require('./config');
 const { Player } = require('./player');
 const { Thumbnailer } = require('./thumbnails');
@@ -34,7 +35,7 @@ if (SCREENSHOT_DIR) app.commandLine.appendSwitch('disable-features', 'CalculateN
 // As janelas desenham fora do ecrã e a app só lê o bitmap: sem composição na GPU não há
 // processo de GPU a reter texturas (menos ~110 MB), e o custo na CPU é pequeno.
 app.commandLine.appendSwitch('disable-gpu-compositing');
-// --hidden: arranque com o Windows, fica só no tray.
+// --hidden: arranque com o Windows com "Iniciar minimizada no tray": fica só no tray.
 const START_HIDDEN = process.argv.includes('--hidden');
 // --profile=<pasta>: usa outra pasta de dados (testes sem tocar na configuração real).
 const profileArg = process.argv.find((a) => a.startsWith('--profile='));
@@ -47,7 +48,8 @@ const userWidgetsDir = path.join(app.getPath('userData'), 'widgets');
 const assetsDir = path.join(app.getPath('userData'), 'assets');
 const device = new Device();
 const sender = new FrameSender(device);
-const sensors = new Sensors();
+const aiUsage = new AiUsage();
+const sensors = new Sensors({ sources: [aiUsage] });
 const player = new Player();
 
 let config;
@@ -246,6 +248,7 @@ function buildLayout(screen, animate = false) {
           scale: b.scale, width: b.width, height: b.height,   // o que o componente vê, em unidades de desenho
           props,
           sensorProps: type.properties.filter((p) => p.type === 'sensor').map((p) => p.key),
+          sensorGroups: type.properties.filter((p) => p.type === 'sensorGroup').map((p) => p.key),
         };
       }),
   };
@@ -391,6 +394,7 @@ function sendStatus() {
   sendToControl('status', {
     device: deviceStatus(),
     lhm: sensors.lhmStatus,
+    ai: aiUsage.status,
     fps: rateCounters.fps,
     kbps: rateCounters.kbps,
     deviceErrors,
@@ -490,7 +494,8 @@ function applyConfig(next) {
   }
   if (prev.port !== config.port) device.setPortSetting(config.port || 'auto');
   if (prev.link !== config.link || (prev.wifi && prev.wifi.host) !== (config.wifi && config.wifi.host)) device.setLink(linkSetting());
-  if (prev.startWithWindows !== config.startWithWindows) applyLoginItem();
+  if (prev.startWithWindows !== config.startWithWindows || prev.startMinimized !== config.startMinimized) applyLoginItem();
+  if (JSON.stringify(prev.ai) !== JSON.stringify(config.ai)) aiUsage.configure(config.ai);
   if (JSON.stringify(prev.display) !== JSON.stringify(config.display)) applyGeometry();
   stampDesign();
   player.update(config.screens);
@@ -672,7 +677,7 @@ function applyLoginItem() {
   // Em desenvolvimento o executável é o electron.exe: é preciso passar a pasta da app.
   // Na versão portátil, process.execPath é uma cópia temporária: usa o .exe original.
   const exe = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
-  const args = app.isPackaged ? ['--hidden'] : [app.getAppPath(), '--hidden'];
+  const args = [...(app.isPackaged ? [] : [app.getAppPath()]), ...(config.startMinimized !== false ? ['--hidden'] : [])];
   app.setLoginItemSettings({ openAtLogin: !!config.startWithWindows, path: exe, args });
 }
 
@@ -713,6 +718,7 @@ app.on('window-all-closed', (e) => e.preventDefault());
 let shutdownDone = false;
 app.on('before-quit', (e) => {
   quitting = true;
+  aiUsage.stop();
   store.saveNow(config);
   if (shutdownDone) return;
   // Fecha a porta de forma limpa antes de sair (ver Device.stop).
@@ -742,6 +748,9 @@ app.whenReady().then(() => {
 
   sensors.configure({ lhmUrl: config.lhmUrl, intervalMs: config.sensorIntervalMs, language: config.language });
   sensors.start();
+  aiUsage.configure(config.ai);
+  aiUsage.on('change', sendStatus);
+  aiUsage.start();
   applyLoginItem();
   device.start({ portSetting: config.port || 'auto', lastPort: state.lastPort, link: linkSetting() });
 

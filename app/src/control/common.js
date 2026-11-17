@@ -214,7 +214,8 @@ function propField(def, value, onChange) {
     case 'number': return field(def.label, numberInput(v, onChange, def));
     case 'color': return field(def.label, colorInput(v, onChange), true);
     case 'boolean': return field(def.label, toggle(v, onChange), true);
-    case 'select': return field(def.label, selectInput(v, def.options || [], onChange, def.optionLabels));
+    case 'select':
+    case 'sensorGroup': return field(def.label, selectInput(v, def.options || [], onChange, def.optionLabels));
     case 'sensor': return field(def.label, sensorPicker(v, onChange));
     case 'file': return field(def.label, filePicker(v, onChange));
     default: return field(def.label, textInput(v, onChange));

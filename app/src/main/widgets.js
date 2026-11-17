@@ -5,7 +5,7 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { appError } = require('../i18n');
 
-const PROPERTY_TYPES = ['text', 'number', 'color', 'boolean', 'select', 'sensor', 'file'];
+const PROPERTY_TYPES = ['text', 'number', 'color', 'boolean', 'select', 'sensor', 'sensorGroup', 'file'];
 // Grupos da paleta do editor (campo "category" do manifest; por omissão "component").
 const CATEGORIES = ['component', 'shape', 'image'];
 const SDK_TAG = '<script src="../_sdk/widget-sdk.js"></script>';
@@ -76,7 +76,7 @@ function validateManifest(m) {
   for (const p of m.properties || []) {
     if (!p.key || !p.label) throw appError('err.propKeyLabel');
     if (!PROPERTY_TYPES.includes(p.type)) throw appError('err.propType', { key: p.key, type: p.type });
-    if (p.type === 'select' && !Array.isArray(p.options)) throw appError('err.selectOptions', { key: p.key });
+    if ((p.type === 'select' || p.type === 'sensorGroup') && !Array.isArray(p.options)) throw appError('err.selectOptions', { key: p.key, type: p.type });
   }
 }
 

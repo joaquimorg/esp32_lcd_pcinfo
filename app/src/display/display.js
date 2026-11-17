@@ -32,6 +32,19 @@ function resolveProps(widget) {
     const sensor = sensors[props[key]];
     props[key] = sensor ? { ...sensor, history: history.get(sensor.id) || [] } : null;
   }
+  // sensorGroup: o valor é um prefixo (ex: "ai/claude"); o widget recebe { <resto do id>: sensor }
+  // e o prefixo em <key>Id.
+  for (const key of widget.sensorGroups || []) {
+    const prefix = props[key] ? `${props[key]}/` : null;
+    const group = {};
+    if (prefix) {
+      for (const id of Object.keys(sensors)) {
+        if (id.startsWith(prefix)) group[id.slice(prefix.length)] = { ...sensors[id], history: history.get(id) || [] };
+      }
+    }
+    props[`${key}Id`] = props[key];
+    props[key] = group;
+  }
   return props;
 }
 

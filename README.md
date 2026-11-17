@@ -42,6 +42,10 @@ Created by [joaquim.org](https://joaquim.org) · [MIT License](LICENSE)
   horizontal or vertical), graph and trend card (sensor history), sensor list,
   indicator lamp, sensor text, clock, date and text. Text, clock and sensor
   text have font, weight and italic options.
+- **AI subscriptions**: the AI usage widget shows how much of the Claude Code or
+  Codex subscription is used (the short window and the week, as bars, rings or
+  compact text) and, once a window is at the limit, when it resets. It reads the
+  login of those apps on the PC, read-only; off until enabled in Settings.
 - **Shapes**: line (solid, dashed, dotted), rectangle (rounded corners,
   border, gradient), circle/ellipse, arc/ring (with a colour gradient along
   the arc) and polygon/star.

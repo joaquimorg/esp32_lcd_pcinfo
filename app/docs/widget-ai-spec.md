@@ -60,6 +60,7 @@ O ficheiro tem obrigatoriamente:
 | `boolean` | `true` / `false` | |
 | `select` | uma das strings de `options` | `options` é obrigatório |
 | `file` | URL `file:///…` de uma imagem, ou vazio | |
+| `sensorGroup` | objeto `{ <resto do id>: sensor }` com todos os sensores cujo id começa por `<valor>/` (ex: `ai/claude` → `{ primary, secondary }`); o valor escolhido chega em `<key>Id` | `options` é obrigatório (os prefixos); os sensores `ai/*` trazem também `resetAt` (ms) e `windowSec` |
 
 - Para cada dado que o widget mostra, cria uma propriedade `sensor`. Nunca
   escrevas IDs de sensores no código, porque é o utilizador que os escolhe.

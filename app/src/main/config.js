@@ -44,6 +44,10 @@ function defaultConfig() {
     sensorIntervalMs: 1000,
     frameRate: 30,
     startWithWindows: false,
+    // Ao arrancar com o Windows, fica só no tray (sem abrir a janela de gestão).
+    startMinimized: true,
+    // Uso das subscrições de IA (src/main/ai-usage.js). Desligado: usa os logins da pessoa.
+    ai: { claude: false, codex: false },
     port: 'auto',
     language: 'en',   // 'en' | 'pt' (src/i18n.js)
     // Transição entre widgets (cada widget pode ter a sua: screen.transition).

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.16.0
+
+**AI subscription usage on the LCD**
+- New *AI usage* widget: the usage of the Claude Code or Codex subscription, with the short window
+  and the week as bars, rings or compact text, warning and limit colours and, once a window is at
+  100%, when it resets ("in 2h 15m", "at 14:30" or both). Windows are named after their real length
+  (Codex on the Go plan has a single 30-day window).
+- The same values are sensors (`ai/claude/primary`, `ai/claude/secondary`, `ai/codex/primary`, ...),
+  usable in the bar, gauge and other widgets.
+- **Settings → AI subscriptions**: one switch per service (off by default) and its status. The app
+  reads the login Claude Code and Codex keep on the PC, read-only (never renewed, stored or logged),
+  and asks for the usage every 90 s, backing off on 429/5xx.
+- New widget property type `sensorGroup` (all sensors under a prefix), documented in the widget spec.
+
+**Start minimized**
+- New option *Start minimized to the tray* under *Start with Windows*: when off, the window opens
+  when Windows starts.
+
 ## 0.15.2
 
 **Wi-Fi link: no more drops (CYD)**

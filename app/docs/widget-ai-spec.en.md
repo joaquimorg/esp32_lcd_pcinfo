@@ -61,6 +61,7 @@ The file must have:
 | `boolean` | `true` / `false` | |
 | `select` | one of the strings in `options` | `options` is required |
 | `file` | `file:///…` URL of an image, or empty | |
+| `sensorGroup` | object `{ <rest of the id>: sensor }` with every sensor whose id starts with `<value>/` (e.g. `ai/claude` → `{ primary, secondary }`); the chosen value arrives in `<key>Id` | `options` is required (the prefixes); `ai/*` sensors also carry `resetAt` (ms) and `windowSec` |
 
 - For every piece of data the widget shows, create a `sensor` property. Never
   write sensor IDs in the code, because the user picks them.

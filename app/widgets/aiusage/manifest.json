@@ -1,0 +1,37 @@
+{
+  "name": "AI usage",
+  "description": "Usage of a Claude Code or Codex subscription: the short window and the week, and when it resets once at the limit.",
+  "size": {"w": 220, "h": 90},
+  "properties": [
+    {"key": "service", "type": "sensorGroup", "label": "Service", "default": "ai/claude", "options": ["ai/claude", "ai/codex"], "optionLabels": {"ai/claude": "Claude Code", "ai/codex": "Codex"}},
+    {"key": "style", "type": "select", "label": "Style", "default": "bars", "options": ["bars", "rings", "compact"], "optionLabels": {"bars": "Bars", "rings": "Rings", "compact": "Compact"}},
+    {"key": "show", "type": "select", "label": "Show", "default": "both", "options": ["both", "primary", "secondary"], "optionLabels": {"both": "window and week", "primary": "short window only", "secondary": "week only"}},
+    {"key": "label", "type": "text", "label": "Caption (empty = service name)", "default": ""},
+    {"key": "warnAt", "type": "number", "label": "Warning from (%)", "default": 80, "min": 0, "max": 100},
+    {"key": "resetFormat", "type": "select", "label": "Reset", "default": "relative", "options": ["relative", "clock", "both"], "optionLabels": {"relative": "in 2h 15m", "clock": "at 14:30", "both": "in 2h 15m (14:30)"}},
+    {"key": "color", "type": "color", "label": "Colour", "default": "#00c8ff"},
+    {"key": "warnColor", "type": "color", "label": "Warning colour", "default": "#ffb300"},
+    {"key": "limitColor", "type": "color", "label": "Limit colour", "default": "#ff3b30"},
+    {"key": "trackColor", "type": "color", "label": "Background colour", "default": "#2a2d33"},
+    {"key": "textColor", "type": "color", "label": "Text colour", "default": "#d0d4da"}
+  ],
+  "i18n": {
+    "pt": {
+      "name": "Uso de IA",
+      "description": "Utilização de uma subscrição Claude Code ou Codex: a janela curta e a semana e, no limite, quando faz reset.",
+      "properties": {
+        "service": {"label": "Serviço"},
+        "style": {"label": "Estilo", "optionLabels": {"bars": "Barras", "rings": "Anéis", "compact": "Compacto"}},
+        "show": {"label": "Mostrar", "optionLabels": {"both": "janela e semana", "primary": "só a janela curta", "secondary": "só a semana"}},
+        "label": {"label": "Legenda (vazio = nome do serviço)"},
+        "warnAt": {"label": "Aviso a partir de (%)"},
+        "resetFormat": {"label": "Reset", "optionLabels": {"relative": "em 2h 15m", "clock": "às 14:30", "both": "em 2h 15m (14:30)"}},
+        "color": {"label": "Cor"},
+        "warnColor": {"label": "Cor de aviso"},
+        "limitColor": {"label": "Cor de limite"},
+        "trackColor": {"label": "Cor do fundo"},
+        "textColor": {"label": "Cor do texto"}
+      }
+    }
+  }
+}

@@ -78,8 +78,10 @@ class SystemSensors {
  * Lê os sensores periodicamente. Evento: update(sensors) com { [id]: sensor }.
  */
 class Sensors extends EventEmitter {
-  constructor() {
+  /** sources: outras fontes com read(out) (ex: AiUsage), lidas a cada leitura. */
+  constructor({ sources = [] } = {}) {
     super();
+    this.sources = sources;
     this.lhmUrl = '';
     this.intervalMs = 1000;
     this.system = new SystemSensors();
@@ -110,6 +112,7 @@ class Sensors extends EventEmitter {
   async tick() {
     const sensors = {};
     this.system.read(sensors);
+    for (const src of this.sources) src.read(sensors);
 
     if (this.lhmUrl) {
       try {

@@ -55,3 +55,15 @@ test('rejeita manifests inválidos com uma mensagem útil', () => {
   const badJson = example.replace('"size": { "w": 120, "h": 120 },', '"size": { "w": 120, "h": 120 },,');
   assert.throws(() => importWidget(badJson, dir, new Set()), /invalid JSON/);
 });
+
+function manifestHtml(props) {
+  return `<!doctype html><html><head><script type="application/json" id="widget-manifest">${JSON.stringify({ name: 'G', properties: props })}</script></head><body><script src="../_sdk/widget-sdk.js"></script></body></html>`;
+}
+
+test('sensorGroup: aceite com options, rejeitado sem elas', () => {
+  const dir = tmpDir();
+  const ok = manifestHtml([{ key: 'service', type: 'sensorGroup', label: 'S', options: ['ai/claude', 'ai/codex'] }]);
+  assert.doesNotThrow(() => importWidget(ok, dir, new Set()));
+  const bad = manifestHtml([{ key: 'service', type: 'sensorGroup', label: 'S' }]);
+  assert.throws(() => importWidget(bad, dir, new Set()), /"sensorGroup" needs "options"/);
+});

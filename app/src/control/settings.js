@@ -6,6 +6,7 @@
 function renderSettingsView() {
   renderGeneralSettings();
   renderSensorSettings();
+  renderAiSettings();
   renderConnectionSettings();
   renderDisplaySettings();
   renderAbout();
@@ -20,7 +21,14 @@ function renderGeneralSettings() {
       commit();
       applyLanguage(v);
     })),
-    field(t('settings.startup'), toggle(config.startWithWindows, (v) => { config.startWithWindows = v; commit(); }), true),
+    field(t('settings.startup'), toggle(config.startWithWindows, (v) => {
+      config.startWithWindows = v;
+      commit();
+      renderGeneralSettings();
+    }), true),
+    ...(config.startWithWindows ? [
+      field(t('settings.startMinimized'), toggle(config.startMinimized !== false, (v) => { config.startMinimized = v; commit(); }), true),
+    ] : []),
   );
 }
 
@@ -32,6 +40,35 @@ function renderSensorSettings() {
     field(t('settings.sensorMs'), numberInput(config.sensorIntervalMs, (v) => { config.sensorIntervalMs = Math.max(250, v); commit(); }, { min: 250, step: 250 })),
     h('p', { class: 'desc' }, t('settings.lhmHelp')),
   );
+}
+
+// Subscrições de IA: um interruptor por serviço e o estado que vem do processo principal.
+const AI_SERVICES = [['claude', 'Claude Code'], ['codex', 'Codex']];
+let aiStatus = {};
+
+function renderAiSettings() {
+  const box = $('#settingsAi');
+  box.innerHTML = '';
+  if (!config.ai) config.ai = { claude: false, codex: false };
+  for (const [id, name] of AI_SERVICES) {
+    box.append(
+      field(name, toggle(config.ai[id], (v) => { config.ai = { ...config.ai, [id]: v }; commit(); }), true),
+      h('p', { class: 'desc', id: `aiStatus-${id}` }),
+    );
+  }
+  box.append(h('p', { class: 'desc' }, t('settings.ai.help')));
+  updateAiStatus(aiStatus);
+}
+
+function updateAiStatus(st) {
+  aiStatus = st || {};
+  for (const [id] of AI_SERVICES) {
+    const el = $(`#aiStatus-${id}`);
+    if (!el) continue;
+    const s = aiStatus[id] || { state: 'off' };
+    el.textContent = t(`ai.state.${s.state}`, { message: s.message || '' });
+    el.classList.toggle('warn', s.state !== 'ok' && s.state !== 'off');
+  }
 }
 
 // Estado do formulário Wi-Fi. A palavra-passe fica só aqui (memória da janela): vai para a placa
