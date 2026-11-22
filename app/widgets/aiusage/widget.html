@@ -75,6 +75,9 @@
     return p.color;
   }
 
+  /** Mostra o reset: sempre (se se souber) ou só quando está no limite. */
+  const wantsReset = (s, p) => (p.showReset === 'always' ? !!s.resetAt : s.value >= 100);
+
   const pct = (v) => `${Math.round(v)}%`;
 
   function draw(p, info) {
@@ -102,7 +105,7 @@
     if (style === 'compact') return drawCompact(wins, title, p, info, innerH, W - 2 * pad);
 
     // Barras: legenda, e por janela uma linha [nome | barra | %] (+ uma linha com o reset no limite).
-    const lines = (title ? 1 : 0) + wins.length + wins.filter((s) => s.value >= 100).length * 0.85;
+    const lines = (title ? 1 : 0) + wins.length + wins.filter((s) => wantsReset(s, p)).length * 0.85;
     const fs = Math.max(8, Math.min(innerH / (lines * 1.35), W / 12));
     body.style.fontSize = fs + 'px';
     const barH = Math.max(3, Math.round(fs * 0.55));
@@ -115,7 +118,7 @@
         + `<div class="track" style="height:${barH}px;border-radius:${barH / 2}px;background:${p.trackColor}">`
         + `<div class="fill" style="width:${(f * 100).toFixed(1)}%;background:${c}"></div></div>`
         + `<span class="v">${v}</span></div>`;
-      if (s.value >= 100) html += `<div class="small" style="color:${c};text-align:right">${esc(resetText(s, p, info))}</div>`;
+      if (wantsReset(s, p)) html += `<div class="small" style="color:${s.value >= 100 ? c : 'inherit'};opacity:${s.value >= 100 ? 1 : 0.65};text-align:right">${esc(resetText(s, p, info))}</div>`;
     }
     body.innerHTML = html;
   }
@@ -135,20 +138,21 @@
       const f = Math.max(0, Math.min(1, s.value / 100));
       const limit = s.value >= 100;
       const inside = limit ? resetText(s, p, info, true) : pct(s.value);
+      const cap = !limit && wantsReset(s, p) ? `${windowName(s)} · ${resetText(s, p, info, true)}` : windowName(s);
       const inFs = Math.max(7, Math.min(size * (limit ? 0.2 : 0.28), (size - 2 * thick) / Math.max(3, inside.length * 0.6)));
       html += `<div class="ring"><svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`
         + `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${p.trackColor}" stroke-width="${thick}"/>`
         + `<circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="${c}" stroke-width="${thick}" pathLength="100"`
         + ` stroke-dasharray="${(f * 100).toFixed(2)} 100" transform="rotate(-90 ${size / 2} ${size / 2})" stroke-linecap="${f > 0 && f < 1 ? 'round' : 'butt'}"/>`
         + `<text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="${inFs}" font-weight="600" fill="${limit ? c : p.textColor}">${esc(inside)}</text>`
-        + `</svg><div class="muted" style="font-size:${capFs}px">${esc(windowName(s))}</div></div>`;
+        + `</svg><div class="muted" style="font-size:${capFs}px">${esc(cap)}</div></div>`;
     }
     body.innerHTML = html + '</div>';
   }
 
   function drawCompact(wins, title, p, info, innerH, innerW) {
     const body = document.body;
-    const rows = wins.length + wins.filter((s) => s.value >= 100).length * 0.85;
+    const rows = wins.length + wins.filter((s) => wantsReset(s, p)).length * 0.85;
     const fs = Math.max(8, Math.min(innerH / (rows * 1.3), innerW / 11));
     body.style.fontSize = fs + 'px';
     let html = '<div class="compact">';
@@ -157,11 +161,11 @@
       html += `<span class="title">${i === 0 ? esc(title) : ''}</span>`
         + `<span class="muted">${esc(windowName(s))}</span>`
         + `<span class="v" style="color:${c}">${pct(s.value)}</span>`;
-      if (s.value >= 100) {
+      if (wantsReset(s, p)) {
         // Linha inteira, com a letra reduzida até caber (o formato "ambos" é comprido).
         const txt = resetText(s, p, info);
         const rfs = Math.min(fs * 0.78, innerW / (txt.length * 0.55));
-        html += `<span style="grid-column:1/-1;text-align:right;font-size:${rfs}px;color:${c}">${esc(txt)}</span>`;
+        html += `<span style="grid-column:1/-1;text-align:right;font-size:${rfs}px;color:${s.value >= 100 ? c : 'inherit'};opacity:${s.value >= 100 ? 1 : 0.65}">${esc(txt)}</span>`;
       }
     });
     body.innerHTML = html + '</div>';
