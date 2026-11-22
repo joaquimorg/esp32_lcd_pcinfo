@@ -8,6 +8,7 @@ const { Device, listPorts } = require('./device');
 const { FrameSender } = require('./frame-sender');
 const { Sensors } = require('./sensors');
 const { AiUsage } = require('./ai-usage');
+const { Updater } = require('./updater');
 const { ConfigStore, newId } = require('./config');
 const { Player } = require('./player');
 const { Thumbnailer } = require('./thumbnails');
@@ -50,6 +51,11 @@ const device = new Device();
 const sender = new FrameSender(device);
 const aiUsage = new AiUsage();
 const sensors = new Sensors({ sources: [aiUsage] });
+const updater = new Updater();
+// A versão portátil não se atualiza sozinha (o .exe em uso não se substitui): abre a página da release.
+const PORTABLE = !!process.env.PORTABLE_EXECUTABLE_FILE;
+const UPDATE_FIRST_CHECK_MS = 20 * 1000;
+const UPDATE_CHECK_EVERY_MS = 24 * 3600 * 1000;
 const player = new Player();
 
 let config;
@@ -395,6 +401,7 @@ function sendStatus() {
     device: deviceStatus(),
     lhm: sensors.lhmStatus,
     ai: aiUsage.status,
+    update: { ...updater.status, portable: PORTABLE },
     fps: rateCounters.fps,
     kbps: rateCounters.kbps,
     deviceErrors,
@@ -552,6 +559,60 @@ ipcMain.handle('components:reload', () => {
   return publicCatalog();
 });
 ipcMain.on('components:openFolder', () => shell.openPath(userWidgetsDir));
+/* ------------------------------------------------------------------------ */
+/* Atualizações (GitHub releases)                                            */
+/* ------------------------------------------------------------------------ */
+
+let promptedVersion = null;
+
+/** Procura uma versão nova. Automática: pergunta uma vez por versão; manual: só atualiza o estado nas Definições. */
+async function checkForUpdates(auto) {
+  const rel = await updater.check(app.getVersion());
+  if (rel && auto && promptedVersion !== rel.version) {
+    promptedVersion = rel.version;
+    const parent = controlWin && !controlWin.isDestroyed() ? controlWin : undefined;
+    const notes = rel.notes.length > 800 ? rel.notes.slice(0, 800) + '…' : rel.notes;
+    const { response } = await dialog.showMessageBox(parent, {
+      type: 'info',
+      buttons: [t(PORTABLE ? 'update.openPage' : 'update.install'), t('update.later')],
+      defaultId: 0,
+      cancelId: 1,
+      title: t('update.title'),
+      message: t('update.available', { version: rel.version, current: app.getVersion() }),
+      detail: notes,
+    });
+    if (response === 0) installUpdate();
+  }
+}
+
+/** Descarrega o instalador, fecha a app e executa-o (o instalador pede para escolher a pasta, etc.). */
+async function installUpdate() {
+  const rel = updater.release;
+  if (!rel) return;
+  if (PORTABLE || !rel.asset) { shell.openExternal(rel.page); return; }
+  let file;
+  try {
+    file = await updater.download();
+  } catch (err) {
+    console.error('Update download failed:', err.message);
+    return;
+  }
+  // Só depois de a app fechar (a porta série é libertada em before-quit): o instalador não a encontra a correr.
+  app.once('quit', () => {
+    const { spawn } = require('child_process');
+    spawn(file, [], { detached: true, stdio: 'ignore' }).unref();
+  });
+  app.quit();
+}
+
+function scheduleUpdateChecks() {
+  if (SCREENSHOT_DIR) return;
+  const run = () => { if (config.autoCheckUpdates !== false) checkForUpdates(true); };
+  setTimeout(run, UPDATE_FIRST_CHECK_MS).unref();
+  setInterval(run, UPDATE_CHECK_EVERY_MS).unref();
+}
+ipcMain.on('update:check', () => checkForUpdates(false));
+ipcMain.on('update:install', () => installUpdate());
 ipcMain.on('site:open', () => shell.openExternal(SITE_URL));
 
 /* ------------------------------------------------------------------------ */
@@ -751,6 +812,8 @@ app.whenReady().then(() => {
   aiUsage.configure(config.ai);
   aiUsage.on('change', sendStatus);
   aiUsage.start();
+  updater.on('change', sendStatus);
+  scheduleUpdateChecks();
   applyLoginItem();
   device.start({ portSetting: config.port || 'auto', lastPort: state.lastPort, link: linkSetting() });
 

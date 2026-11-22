@@ -76,6 +76,7 @@ ipc.onStatus((st) => {
 
   updateWifiStatus(st.device);
   updateAiStatus(st.ai);
+  updateUpdateStatus(st.update);
 
   // A marca "ligado" na lista de portas muda quando o ESP32 liga ou desliga.
   if (st.device.path !== lastDevicePath) {

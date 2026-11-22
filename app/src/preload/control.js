@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('api', {
   imageSize: (file) => ipcRenderer.invoke('image:size', file),
   reloadComponents: () => ipcRenderer.invoke('components:reload'),
   openComponentsFolder: () => ipcRenderer.send('components:openFolder'),
+  checkUpdate: () => ipcRenderer.send('update:check'),
+  installUpdate: () => ipcRenderer.send('update:install'),
   openSite: () => ipcRenderer.send('site:open'),
   copyAiInstructions: () => ipcRenderer.invoke('ai:copyInstructions'),
   importComponentFromClipboard: () => ipcRenderer.invoke('components:importClipboard'),

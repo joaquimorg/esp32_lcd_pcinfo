@@ -29,7 +29,29 @@ function renderGeneralSettings() {
     ...(config.startWithWindows ? [
       field(t('settings.startMinimized'), toggle(config.startMinimized !== false, (v) => { config.startMinimized = v; commit(); }), true),
     ] : []),
+    field(t('settings.autoUpdate'), toggle(config.autoCheckUpdates !== false, (v) => { config.autoCheckUpdates = v; commit(); }), true),
+    h('p', { class: 'desc', id: 'updateStatus' }),
+    h('div', { class: 'actions' },
+      h('button', { class: 'btn small', id: 'updateCheck', onclick: () => ipc.checkUpdate() }, t('update.check')),
+      h('button', { class: 'btn small primary', id: 'updateInstall', hidden: true, onclick: () => ipc.installUpdate() }, t('update.install'))),
   );
+  updateUpdateStatus(updateState);
+}
+
+// Estado das atualizações, vindo do processo principal.
+let updateState = { state: 'idle' };
+
+function updateUpdateStatus(st) {
+  updateState = st || { state: 'idle' };
+  const el = $('#updateStatus');
+  if (!el) return;
+  const busy = updateState.state === 'checking' || updateState.state === 'downloading';
+  el.textContent = t(`update.state.${updateState.state}`, { version: updateState.version || '', progress: updateState.progress || 0, message: updateState.message || '', current: appVersion });
+  el.classList.toggle('warn', updateState.state === 'error');
+  $('#updateCheck').disabled = busy;
+  const install = $('#updateInstall');
+  install.hidden = updateState.state !== 'available';
+  install.textContent = t(updateState.portable ? 'update.openPage' : 'update.install');
 }
 
 function renderSensorSettings() {

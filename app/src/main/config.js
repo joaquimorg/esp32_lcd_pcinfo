@@ -48,6 +48,8 @@ function defaultConfig() {
     startMinimized: true,
     // Uso das subscrições de IA (src/main/ai-usage.js). Desligado: usa os logins da pessoa.
     ai: { claude: false, codex: false },
+    // Procura versões novas no GitHub ao arrancar e de 24 em 24 h (pergunta antes de instalar).
+    autoCheckUpdates: true,
     port: 'auto',
     language: 'en',   // 'en' | 'pt' (src/i18n.js)
     // Transição entre widgets (cada widget pode ter a sua: screen.transition).

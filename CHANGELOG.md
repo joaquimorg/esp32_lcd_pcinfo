@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.17.0
+
+**Updates from inside the app**
+- The app checks the latest GitHub release at start-up and every 24 h (switch under *Settings → General*,
+  or *Check for updates* to do it now). When a newer version exists it asks before doing anything:
+  *Download and install* downloads the installer (checked against the release's SHA-256), closes the
+  app and runs it. *Later* asks again only for the next version.
+- The portable build does not replace itself: it opens the release download page instead.
+
 ## 0.16.1
 
 - *AI usage* widget: new **Show reset** property to always show when each window resets, not only
