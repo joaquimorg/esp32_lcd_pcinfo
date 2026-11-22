@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.16.1
+
+- *AI usage* widget: new **Show reset** property to always show when each window resets, not only
+  once at the limit (bars, rings and compact).
+
 ## 0.16.0
 
 **AI subscription usage on the LCD**
